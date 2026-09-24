@@ -6,7 +6,7 @@ export function calc(l: Ledger, date = new Date()) {
   const sum = (xs: {amount:number}[]) => xs.reduce((s,x) => s+cents(x.amount),0)
   const month = `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}`
   const today = `${month}-${String(date.getDate()).padStart(2,'0')}`
-  const transactions = l.transactions.filter(x => x.date.startsWith(month))
+  const transactions = l.transactions.filter(x => x.date.startsWith(month) && x.budgetImpact !== false)
   const spent = sum(transactions)
   const fixedReserved = sum(l.expenses.filter(x=>x.active&&!x.paid))
   const wishReserved = sum(l.wishes.filter(x=>x.intensity>=8&&x.source==='budget'))

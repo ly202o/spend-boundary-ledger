@@ -20,3 +20,9 @@ test('高愿望按资金来源占用，超预算保留负数',()=>{
  l.wishes[0].source='freedom'
  assert.equal(calc(l,date).available,1000)
 })
+
+test('自由基金购买不消耗当月生活预算',()=>{
+ const l:Ledger={...base,transactions:[{id:'1',title:'耳机',amount:499,category:'愿望',date:'2026-09-01',source:'wish',budgetImpact:false}]}
+ assert.equal(calc(l,date).spent,0)
+ assert.equal(calc(l,date).available,1000)
+})
