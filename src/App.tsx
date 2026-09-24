@@ -3,10 +3,14 @@ import { CircleDollarSign, Heart, Home, Plus, ReceiptText, Settings, Sparkles, W
 import { load, save } from './store'
 import { calc } from './budget'
 import type { Expense, Ledger, Transaction, Wish } from './types'
+import type { User } from '@supabase/supabase-js'
+import { supabase, syncConfigured } from './supabase'
+import { fetchCloudLedger, saveCloudLedger, stamp } from './sync'
 
 const yuan = (n: number) => `${n < 0 ? '−' : ''}¥${Math.abs(n).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 const now = new Date()
 const today = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`
+const currentMonth = today.slice(0, 7)
 const uid = () => crypto.randomUUID()
 const validAmount = (value: string) => Number.isFinite(+value) && +value > 0 && +value <= 100000000 && /^\d+(\.\d{1,2})?$/.test(value)
 
@@ -14,11 +18,47 @@ export default function App() {
   const [ledger, setLedger] = useState<Ledger>(load)
   const [tab, setTab] = useState<'home'|'records'|'wishes'|'expenses'|'settings'>('home')
   const [modal, setModal] = useState<'transaction'|'wish'|'expense'|null>(null)
-  const update = (next: Ledger) => { setLedger(next); save(next) }
+  const [user, setUser] = useState<User | null>(null)
+  const [syncState, setSyncState] = useState<'offline'|'syncing'|'synced'|'error'>('offline')
+  const update = (next: Ledger) => {
+    const stamped = stamp(next)
+    setLedger(stamped); save(stamped)
+    if (user) {
+      setSyncState('syncing')
+      saveCloudLedger(user, stamped).then(() => setSyncState('synced')).catch(() => setSyncState('error'))
+    }
+  }
+  useEffect(() => {
+    if (!supabase) return
+    const hydrate = async (nextUser: User | null) => {
+      setUser(nextUser)
+      if (!nextUser) { setSyncState('offline'); return }
+      setSyncState('syncing')
+      try {
+        const remote = await fetchCloudLedger(nextUser)
+        const local = load()
+        if (remote && (!local.updatedAt || new Date(remote.updatedAt || 0) > new Date(local.updatedAt))) {
+          setLedger(remote); save(remote)
+        } else {
+          await saveCloudLedger(nextUser, stamp(local))
+        }
+        setSyncState('synced')
+      } catch { setSyncState('error') }
+    }
+    supabase.auth.getUser().then(({ data }) => hydrate(data.user))
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => { void hydrate(session?.user ?? null) })
+    return () => subscription.unsubscribe()
+  }, [])
+  const requestSyncLogin = async (email: string) => {
+    if (!supabase) return '请先完成 Supabase 配置。'
+    const { error } = await supabase.auth.signInWithOtp({ email, options: { emailRedirectTo: window.location.origin + window.location.pathname } })
+    return error?.message || '验证邮件已发送，请在此设备打开邮件中的链接。'
+  }
+  const signOut = async () => { await supabase?.auth.signOut() }
   const stats = useMemo(() => calc(ledger), [ledger])
   const paidExpense = (id: string) => {
     const exp = ledger.expenses.find(x => x.id === id)! 
-    update({ ...ledger, expenses: ledger.expenses.map(x => x.id === id ? { ...x, paid: true } : x), transactions: [{ id: uid(), title: exp.title, amount: exp.amount, category: exp.category, date: today, source: 'fixed' }, ...ledger.transactions] })
+    update({ ...ledger, expenses: ledger.expenses.map(x => x.id === id ? { ...x, paid: true, paidMonth: currentMonth } : x), transactions: [{ id: uid(), title: exp.title, amount: exp.amount, category: exp.category, date: today, source: 'fixed' }, ...ledger.transactions] })
   }
   const deleteTransaction = (id: string) => update({ ...ledger, transactions: ledger.transactions.filter(x => x.id !== id) })
   const buyWish = (id: string) => {
@@ -33,7 +73,7 @@ export default function App() {
       {tab === 'records' && <Records items={ledger.transactions} onAdd={() => setModal('transaction')} onDelete={deleteTransaction} />}
       {tab === 'wishes' && <Wishes ledger={ledger} stats={stats} onAdd={() => setModal('wish')} update={update} onBuy={buyWish} />}
       {tab === 'expenses' && <Expenses items={ledger.expenses} onAdd={() => setModal('expense')} onPay={paidExpense} update={update} ledger={ledger} />}
-      {tab === 'settings' && <SettingsPage ledger={ledger} update={update} />}
+      {tab === 'settings' && <SettingsPage ledger={ledger} update={update} configured={syncConfigured} user={user} syncState={syncState} onLogin={requestSyncLogin} onSignOut={signOut} />}
     </section>
     <nav>{[
       ['home', Home, '首页'], ['records', ReceiptText, '账目'], ['wishes', Heart, '愿望'], ['expenses', CircleDollarSign, '固定支出'], ['settings', Settings, '设置']
@@ -54,8 +94,18 @@ function HomePage({ stats, ledger, onAdd }: { stats: ReturnType<typeof calc>; le
 function Metric({ label, value, hint, accent, green }: {label:string;value:string;hint:string;accent?:boolean;green?:boolean}) { return <article className={`metric ${accent ? 'accent' : ''} ${green ? 'green' : ''}`}><span>{label}</span><b>{value}</b><small>{hint}</small></article> }
 function Records({items,onAdd,onDelete}:{items:Transaction[];onAdd:()=>void;onDelete:(id:string)=>void}) { return <Page title="全部账目" action="记一笔" onAction={onAdd}><div className="panel">{items.length ? items.map(x=><div className="line" key={x.id}><div><b>{x.title}</b><small>{x.category} · {x.date}{x.budgetImpact === false ? ' · 自由基金' : ''}</small></div><div className="record-end"><strong>-{yuan(x.amount)}</strong><button aria-label={`删除 ${x.title}`} onClick={()=>onDelete(x.id)}>删除</button></div></div>):<Empty text="开始记账后，消费记录会显示在这里。"/>}</div></Page> }
 function Wishes({ledger,stats,onAdd,update,onBuy}:{ledger:Ledger;stats:ReturnType<typeof calc>;onAdd:()=>void;update:(l:Ledger)=>void;onBuy:(id:string)=>void}) { return <Page title="愿望单" action="添加愿望" onAction={onAdd}><p className="description">强度为 8–10 且使用本月预算的愿望，会自动预留金额。购买后预留转换为实际支出，只扣一次。</p><div className="cards">{ledger.wishes.length ? ledger.wishes.map(x => <article className="wish" key={x.id}><div><span className="pill">{x.intensity}/10 想要</span><h3>{x.title}</h3><small>{x.source === 'budget' ? '本月可支配额度' : x.source === 'freedom' ? '自由基金' : '暂未决定'}</small></div><b>{yuan(x.amount)}</b><div className="actions"><button className="primary" onClick={()=>onBuy(x.id)}>已购买</button><button onClick={()=>update({...ledger,wishes:ledger.wishes.filter(w=>w.id!==x.id)})}>删除</button></div></article>) : <Empty text="把想买的东西放进来，再决定它值不值得占用预算。"/>}</div><div className="notice">当前愿望预留：<b>{yuan(stats.wishReserved)}</b></div></Page> }
-function Expenses({items,onAdd,onPay,update,ledger}:{items:Expense[];onAdd:()=>void;onPay:(id:string)=>void;update:(l:Ledger)=>void;ledger:Ledger}) { return <Page title="固定支出" action="添加项目" onAction={onAdd}><p className="description">预留变为支付时只转换状态，不会重复扣款。</p><div className="cards">{items.map(x => <article className="expense" key={x.id}><div><h3>{x.title}</h3><small>{x.category} · {x.paid ? '已支付' : x.active ? '已预留 / 未支付' : '已停用'}</small></div><b>{yuan(x.amount)}</b><div className="actions">{x.active && !x.paid && <button className="primary" onClick={()=>onPay(x.id)}>标记支付</button>}<button onClick={()=>update({...ledger,expenses:ledger.expenses.map(e=>e.id===x.id?{...e,active:!e.active}:e)})}>{x.active?'停用':'启用'}</button></div></article>)}</div></Page> }
-function SettingsPage({ledger,update}:{ledger:Ledger;update:(l:Ledger)=>void}) { return <Page title="预算设置"><div className="panel settings"><label>月生活预算<input type="number" value={ledger.monthlyBudget} onChange={e=>update({...ledger,monthlyBudget:+e.target.value})}/></label><label>三餐月预算<input type="number" value={ledger.mealBudget} onChange={e=>update({...ledger,mealBudget:+e.target.value})}/></label><label>三餐日额模式<select value={ledger.mode} onChange={e=>update({...ledger,mode:e.target.value as Ledger['mode']})}><option value="dynamic">动态均摊</option><option value="fixed">固定日额</option></select></label><p>数据目前保存在此设备浏览器中。下一阶段会增加账户登录与跨设备同步。</p></div></Page> }
+function Expenses({items,onAdd,onPay,update,ledger}:{items:Expense[];onAdd:()=>void;onPay:(id:string)=>void;update:(l:Ledger)=>void;ledger:Ledger}) { return <Page title="固定支出" action="添加项目" onAction={onAdd}><p className="description">预留变为支付时只转换状态，不会重复扣款；下月会自动重新预留。</p><div className="cards">{items.map(x => {
+  const paidThisMonth = x.paidMonth ? x.paidMonth === currentMonth : x.paid
+  return <article className="expense" key={x.id}><div><h3>{x.title}</h3><small>{x.category} · {paidThisMonth ? '本月已支付' : x.active ? '已预留 / 未支付' : '已停用'}</small></div><b>{yuan(x.amount)}</b><div className="actions">{x.active && !paidThisMonth && <button className="primary" onClick={()=>onPay(x.id)}>标记支付</button>}<button onClick={()=>update({...ledger,expenses:ledger.expenses.map(e=>e.id===x.id?{...e,active:!e.active}:e)})}>{x.active?'停用':'启用'}</button></div></article>
+})}</div></Page> }
+function SettingsPage({ledger,update,configured,user,syncState,onLogin,onSignOut}:{ledger:Ledger;update:(l:Ledger)=>void;configured:boolean;user:User|null;syncState:'offline'|'syncing'|'synced'|'error';onLogin:(email:string)=>Promise<string>;onSignOut:()=>Promise<void>}) { return <Page title="预算设置"><div className="panel settings"><label>月生活预算<input type="number" value={ledger.monthlyBudget} onChange={e=>update({...ledger,monthlyBudget:+e.target.value})}/></label><label>三餐月预算<input type="number" value={ledger.mealBudget} onChange={e=>update({...ledger,mealBudget:+e.target.value})}/></label><label>三餐日额模式<select value={ledger.mode} onChange={e=>update({...ledger,mode:e.target.value as Ledger['mode']})}><option value="dynamic">动态均摊</option><option value="fixed">固定日额</option></select></label><SyncSettings configured={configured} user={user} syncState={syncState} onLogin={onLogin} onSignOut={onSignOut}/><p>未登录时数据仅保存在当前设备；登录后会自动同步。</p></div></Page> }
+function SyncSettings({configured,user,syncState,onLogin,onSignOut}:{configured:boolean;user:User|null;syncState:'offline'|'syncing'|'synced'|'error';onLogin:(email:string)=>Promise<string>;onSignOut:()=>Promise<void>}) {
+  const [email,setEmail] = useState('')
+  const [notice,setNotice] = useState('')
+  if (!configured) return <section className="sync-card"><b>跨设备同步尚未配置</b><small>请按 SYNC-SETUP.md 填写 .env.local 后重启应用。</small></section>
+  if (user) return <section className="sync-card"><b>已登录 {user.email}</b><small>{syncState === 'synced' ? '已同步到云端' : syncState === 'syncing' ? '正在同步…' : '同步失败，请检查网络后再修改一次数据。'}</small><button type="button" onClick={()=>void onSignOut()}>退出登录</button></section>
+  return <section className="sync-card"><b>跨设备同步</b><small>输入邮箱，点击邮件中的验证链接即可开始同步。</small><label>邮箱<input type="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="you@example.com"/></label><button type="button" className="primary" disabled={!email} onClick={()=>void onLogin(email).then(setNotice)}>发送登录链接</button>{notice&&<small role="status">{notice}</small>}</section>
+}
 function Page({title,action,onAction,children}:{title:string;action?:string;onAction?:()=>void;children:React.ReactNode}) { return <><div className="page-title"><h1>{title}</h1>{action&&<button className="primary" onClick={onAction}>{action}</button>}</div>{children}</> }
 function Empty({text}:{text:string}) { return <div className="empty"><Sparkles size={22}/><p>{text}</p></div> }
 function Modal({title,children,close}:{title:string;children:React.ReactNode;close:()=>void}) {

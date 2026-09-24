@@ -10,5 +10,22 @@ export const initialLedger: Ledger = {
     { id: 'phone', title: '电话费', amount: 30, active: true, paid: false, category: '通信' }
   ]
 }
-export function load(): Ledger { try { return JSON.parse(localStorage.getItem(key) || '') } catch { return initialLedger } }
+const currentMonth = () => {
+  const now = new Date()
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+}
+
+/** Migrates the original one-time `paid` flag into the current month's payment. */
+export function load(): Ledger {
+  try {
+    const ledger = JSON.parse(localStorage.getItem(key) || '') as Ledger
+    if (!ledger?.expenses) return initialLedger
+    return {
+      ...ledger,
+      expenses: ledger.expenses.map(expense =>
+        expense.paid && !expense.paidMonth ? { ...expense, paidMonth: currentMonth() } : expense,
+      ),
+    }
+  } catch { return initialLedger }
+}
 export function save(data: Ledger) { localStorage.setItem(key, JSON.stringify(data)) }

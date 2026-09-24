@@ -8,7 +8,9 @@ export function calc(l: Ledger, date = new Date()) {
   const today = `${month}-${String(date.getDate()).padStart(2,'0')}`
   const transactions = l.transactions.filter(x => x.date.startsWith(month) && x.budgetImpact !== false)
   const spent = sum(transactions)
-  const fixedReserved = sum(l.expenses.filter(x=>x.active&&!x.paid))
+  // Fixed expenses recur each month. Old records without `paidMonth` retain their
+  // original meaning until load() migrates them.
+  const fixedReserved = sum(l.expenses.filter(x => x.active && (x.paidMonth ? x.paidMonth !== month : !x.paid)))
   const wishReserved = sum(l.wishes.filter(x=>x.intensity>=8&&x.source==='budget'))
   const meals = transactions.filter(x=>x.source==='meal')
   const mealSpent = sum(meals)
