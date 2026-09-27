@@ -9,6 +9,11 @@ import { fetchCloudLedger, saveCloudLedger, stamp } from './sync'
 import { spendingPeriodDays, spendingPeriodSummary, type SpendingPeriod } from './period'
 
 const yuan = (n: number) => `${n < 0 ? '−' : ''}¥${Math.abs(n).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+function Money({value,currency=true}:{value:number;currency?:boolean}) {
+  const formatted=yuan(value)
+  const [whole,decimal]=formatted.split('.')
+  return <>{currency?whole:whole.replace('¥','')}<span className="money-decimal">.{decimal}</span></>
+}
 const now = new Date()
 const today = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`
 const currentMonth = today.slice(0, 7)
@@ -117,33 +122,38 @@ export default function App() {
 
 function HomePage({ stats, ledger }: { stats: ReturnType<typeof calc>; ledger: Ledger }) {
   const [period,setPeriod] = useState<SpendingPeriod>('week')
-  const periodStats = useMemo(() => spendingPeriodSummary(ledger.transactions, period), [ledger.transactions,period])
-  return <><div className="overview"><article className="hero"><div className="today-mini" aria-label={`今日三餐剩余 ${yuan(Math.max(0,stats.todayLeft))}，日额 ${yuan(stats.mealDaily)}`}><span><small>今日剩余</small><b>{yuan(Math.max(0,stats.todayLeft))}</b></span><span><small>今日日额</small><b>{yuan(stats.mealDaily)}</b></span></div><span className="hero-label"><WalletCards size={18}/>本月真正可支配</span><strong>{yuan(stats.available)}</strong><p>{stats.available < 0 ? '预算已超出，先调整消费安排。' : '必要的已留好，这些由你自由安排。'}</p><div className="hero-bottom"><span>生活预算<b>{yuan(ledger.monthlyBudget)}</b></span><span>实际支出<b>{yuan(stats.spent)}</b></span><span>三餐待用<b>{yuan(stats.mealRemaining)}</b></span></div></article><SpendingPeriodCard period={period} setPeriod={setPeriod} summary={periodStats} transactions={ledger.transactions} dailyLimit={stats.mealDaily}/></div>
-  <div className="grid home-metrics"><Metric label="固定支出已预留" value={yuan(stats.fixedReserved)} hint="尚未支付，已提前留好"/><Metric label="为愿望留一点" value={yuan(stats.wishReserved)} hint="高强度愿望 · 本月资金" accent/></div>
-  <section className="panel"><div className="section-title"><h2>最近账目</h2></div>{ledger.transactions.length ? ledger.transactions.slice(0,4).map(x => <div className="line" key={x.id}><div><b>{x.title}</b><small>{x.category} · {x.date}</small></div><strong>{yuan(-x.amount)}</strong></div>) : <Empty text="还没有账目。点击下方加号记录第一笔消费。"/>}</section>
+  return <><div className="overview"><article className="hero"><span className="hero-label"><WalletCards size={18}/>本月真正可支配</span><strong><Money value={stats.available}/></strong><p>{stats.available < 0 ? '预算已超出，先调整消费安排。' : '必要的已留好，这些由你自由安排。'}</p><div className="hero-bottom"><span>生活预算<b><Money value={ledger.monthlyBudget}/></b></span><span>实际支出<b><Money value={stats.spent}/></b></span><span>三餐待用<b><Money value={stats.mealRemaining}/></b></span></div></article><SpendingPeriodCard period={period} setPeriod={setPeriod} transactions={ledger.transactions} dailyLimit={stats.mealDaily}/></div>
+  <div className="grid home-metrics"><Metric label="为愿望留一点" value={<Money value={stats.wishReserved}/>} hint="高强度愿望 · 本月资金" accent/></div>
+  <section className="panel"><div className="section-title"><h2>最近账目</h2></div>{ledger.transactions.length ? ledger.transactions.slice(0,4).map(x => <div className="line" key={x.id}><div><b>{x.title}</b><small>{x.category} · {x.date}</small></div><strong><Money value={-x.amount}/></strong></div>) : <Empty text="还没有账目。点击下方加号记录第一笔消费。"/>}</section>
   <p className="budget-note">本机保存 · 预留支付不重复扣款 · 自由基金独立于生活预算</p></>
 }
-function Metric({ label, value, hint, accent, green }: {label:string;value:string;hint:string;accent?:boolean;green?:boolean}) { return <article className={`metric ${accent ? 'accent' : ''} ${green ? 'green' : ''}`}><span>{label}</span><b>{value}</b><small>{hint}</small></article> }
+function Metric({ label, value, hint, accent, green }: {label:string;value:React.ReactNode;hint:string;accent?:boolean;green?:boolean}) { return <article className={`metric ${accent ? 'accent' : ''} ${green ? 'green' : ''}`}><span>{label}</span><b>{value}</b><small>{hint}</small></article> }
 function Records({items,onDelete,onEdit}:{items:Transaction[];onDelete:(id:string)=>void;onEdit:(item:Transaction)=>void}) { return <Page title="全部账目"><div className="records-panel">{items.length ? items.map(x=><SwipeRecord key={x.id} item={x} onDelete={()=>onDelete(x.id)} onEdit={()=>onEdit(x)}/>):<div className="panel"><Empty text="点击下方加号，记录第一笔消费。"/></div>}</div></Page> }
 function SwipeRecord({item,onDelete,onEdit}:{item:Transaction;onDelete:()=>void;onEdit:()=>void}) {
   const actions = <><button className="swipe-edit" aria-label={`编辑 ${item.title}`} onClick={onEdit}><Pencil size={18}/><span>编辑</span></button><button className="swipe-delete" aria-label={`删除 ${item.title}`} onClick={onDelete}><Trash2 size={19}/><span>删除</span></button></>
   return <SwipeActions actionCount={2} actions={actions}>
     <div className="line">
-      <div><b>{item.title}</b><small>{item.category} · {item.date}{item.budgetImpact === false ? ' · 自由基金' : ''}</small>{item.note&&<small className="record-note">{item.note}</small>}</div><strong>{yuan(-item.amount)}</strong>
+      <div><b>{item.title}</b><small>{item.category} · {item.date}{item.budgetImpact === false ? ' · 自由基金' : ''}</small>{item.note&&<small className="record-note">{item.note}</small>}</div><strong><Money value={-item.amount}/></strong>
     </div>
   </SwipeActions>
 }
-function SpendingPeriodCard({period,setPeriod,summary,transactions,dailyLimit}:{period:SpendingPeriod;setPeriod:(period:SpendingPeriod)=>void;summary:ReturnType<typeof spendingPeriodSummary>;transactions:Transaction[];dailyLimit:number}) {
+function SpendingPeriodCard({period,setPeriod,transactions,dailyLimit}:{period:SpendingPeriod;setPeriod:(period:SpendingPeriod)=>void;transactions:Transaction[];dailyLimit:number}) {
+  const [category,setCategory] = useState<'meal'|'other'|'all'>('meal')
   const labels:Record<SpendingPeriod,string>={week:'本周',seven:'近7日',month:'本月'}
-  const shortDate=(date:Date)=>`${date.getMonth()+1}月${date.getDate()}日`
-  const days=useMemo(()=>spendingPeriodDays(transactions,period),[transactions,period])
-  const tone=(amount:number)=>amount<=0?'empty':dailyLimit<=0||amount>dailyLimit?'over':amount>=dailyLimit*.8?'near':'within'
-  const spentHeight=(amount:number)=>dailyLimit>0?Math.min(100,amount/dailyLimit*100):amount>0?100:0
+  const filtered=useMemo(()=>category==='all'?transactions:transactions.filter(item=>category==='meal'?item.source==='meal':item.source!=='meal'),[transactions,category])
+  const summary=useMemo(()=>spendingPeriodSummary(filtered,period),[filtered,period])
+  const days=useMemo(()=>spendingPeriodDays(filtered,period),[filtered,period])
+  const maxAmount=Math.max(1,...days.map(day=>day.amount))
+  const tone=(amount:number)=>amount<=0?'zero':category==='other'?'other':category==='all'?'all':dailyLimit<=0||amount>dailyLimit?'over':amount>=dailyLimit*.8?'near':'within'
+  const spentHeight=(amount:number)=>amount>0?Math.max(8,amount/maxAmount*68):0
   const weekdays=['一','二','三','四','五','六','日']
   const actions=<>{(['week','seven','month'] as const).map(id=><button key={id} className={`period-choice ${period===id?'selected':''}`} aria-label={`切换到${labels[id]}`} onClick={()=>setPeriod(id)}><span>{labels[id]}</span></button>)}</>
-  return <SwipeActions className="period-swipe" actionCount={3} actions={actions}><article className="period-card"><div className="period-heading"><span className="eyebrow">{labels[period]}支出</span><small>{period==='week'&&`本周额度 ${yuan(dailyLimit*7)} · `}左滑切换</small></div><strong>{yuan(summary.total)}</strong><p>{shortDate(summary.start)}–{shortDate(summary.end)} · {summary.count} 笔</p>{period==='month'?<div className="calendar-chart"><div className="calendar-weekdays">{weekdays.map(day=><span key={day}>{day}</span>)}</div><div className="calendar-grid" style={{'--start-column':String((days[0].date.getDay()+6)%7+1)} as React.CSSProperties}>{days.map((day,index)=><span key={day.dateKey} className={`${day.future?'future':''} ${day.amount?'spent':''} ${tone(day.amount)}`} style={{'--heat':String(dailyLimit>0?Math.min(1,day.amount/dailyLimit):0)} as React.CSSProperties} title={`${day.dateKey} ${yuan(day.amount)}`}><b>{day.date.getDate()}</b>{day.amount>0&&<i/>}{index===0&&<em>16</em>}</span>)}</div></div>:<div className="bar-chart" aria-label={`${labels[period]}每日支出柱状图`}>{days.map((day,index)=>{const over=dailyLimit>0&&day.amount>dailyLimit;return <div className={`bar-day ${day.future?'future':''} ${tone(day.amount)}`} key={day.dateKey}><div className="bar-value">{day.amount>0?yuan(day.amount).replace('¥',''):''}</div><div className="bar-track" title={`${day.dateKey}：已支出 ${yuan(day.amount)}，剩余 ${yuan(Math.max(0,dailyLimit-day.amount))}`}><i style={{height:`${spentHeight(day.amount)}%`}}/>{over&&<em className="bar-overflow">超</em>}</div><span>{period==='week'?weekdays[index]:`${day.date.getMonth()+1}/${day.date.getDate()}`}</span></div>})}</div>}<div className="period-foot"><span>每根柱 = 日额 <b>{yuan(dailyLimit)}</b></span><span>日均 <b>{yuan(summary.dailyAverage)}</b></span></div></article></SwipeActions>
+  const weekLimit=dailyLimit*7
+  const todaySpent=filtered.filter(item=>item.date===today).reduce((sum,item)=>sum+item.amount,0)
+  const categoryLabel=category==='meal'?'三餐':category==='other'?'其他':'全部'
+  return <SwipeActions className="period-swipe" actionCount={3} actions={actions}><article className="period-card"><div className="period-heading"><span className="eyebrow">{labels[period]}支出</span><div className="period-filter" role="group" aria-label="支出分类"><button className={category==='meal'?'active':''} onClick={()=>setCategory('meal')}>三餐支出</button><button className={category==='other'?'active':''} onClick={()=>setCategory('other')}>其他支出</button><button className={category==='all'?'active':''} onClick={()=>setCategory('all')}>全部支出</button></div></div><div className="period-meta">{category==='meal'?<div className="period-budget">{period==='week'&&<span>周额 <Money value={weekLimit}/>　剩余 <b><Money value={weekLimit-summary.total}/></b></span>}<span>日额 <Money value={dailyLimit}/>　剩余 <b><Money value={dailyLimit-todaySpent}/></b></span></div>:<span>{categoryLabel}支出不计入三餐预算</span>}<small>左滑切换周期</small></div><div className="period-total"><strong><Money value={summary.total}/></strong><span>日均 <b><Money value={summary.dailyAverage}/></b></span></div>{period==='month'?<div className="calendar-chart"><div className="calendar-weekdays">{weekdays.map(day=><span key={day}>{day}</span>)}</div><div className="calendar-grid" style={{'--start-column':String((days[0].date.getDay()+6)%7+1)} as React.CSSProperties}>{days.map((day,index)=><span key={day.dateKey} className={`${day.future?'future':''} ${day.amount?'spent':''} ${tone(day.amount)}`} style={{'--heat':String(Math.min(1,day.amount/maxAmount))} as React.CSSProperties} title={`${day.dateKey} ${yuan(day.amount)}`}><b>{day.date.getDate()}</b>{day.amount>0&&<i/>}{index===0&&<em>16</em>}</span>)}</div></div>:<div className="bar-chart" aria-label={`${labels[period]}${categoryLabel}支出柱状图`}>{days.map((day,index)=>{const height=spentHeight(day.amount);return <div className={`bar-day ${day.future?'future':''} ${tone(day.amount)}`} key={day.dateKey}><div className="bar-track" title={`${day.dateKey}：支出 ${yuan(day.amount)}`}><i style={{height:`${height}px`}}/>{day.amount>0&&<div className="bar-value" style={{bottom:`${height+4}px`}}><Money value={day.amount} currency={false}/></div>}</div><span>{period==='week'?`周${weekdays[index]}`:`${day.date.getMonth()+1}/${day.date.getDate()}`}</span></div>})}</div>}</article></SwipeActions>
 }
-function Wishes({ledger,stats,onAdd,update,onBuy}:{ledger:Ledger;stats:ReturnType<typeof calc>;onAdd:()=>void;update:(l:Ledger)=>void;onBuy:(id:string)=>void}) { return <Page title="愿望单" action="添加愿望" onAction={onAdd}><p className="description">强度为 8–10 且使用本月预算的愿望，会自动预留金额。购买后预留转换为实际支出，只扣一次。</p><div className="cards">{ledger.wishes.length ? ledger.wishes.map(x => <article className="wish" key={x.id}><div><span className="pill">{x.intensity}/10 想要</span><h3>{x.title}</h3><small>{x.source === 'budget' ? '本月可支配额度' : x.source === 'freedom' ? '自由基金' : '暂未决定'}</small></div><b>{yuan(x.amount)}</b><div className="actions"><button className="primary" onClick={()=>onBuy(x.id)}>已购买</button><button onClick={()=>update({...ledger,wishes:ledger.wishes.filter(w=>w.id!==x.id)})}>删除</button></div></article>) : <Empty text="把想买的东西放进来，再决定它值不值得占用预算。"/>}</div><div className="notice">当前愿望预留：<b>{yuan(stats.wishReserved)}</b></div></Page> }
+function Wishes({ledger,stats,onAdd,update,onBuy}:{ledger:Ledger;stats:ReturnType<typeof calc>;onAdd:()=>void;update:(l:Ledger)=>void;onBuy:(id:string)=>void}) { return <Page title="愿望单" action="添加愿望" onAction={onAdd}><p className="description">强度为 8–10 且使用本月预算的愿望，会自动预留金额。购买后预留转换为实际支出，只扣一次。</p><div className="cards">{ledger.wishes.length ? ledger.wishes.map(x => <article className="wish" key={x.id}><div><span className="pill">{x.intensity}/10 想要</span><h3>{x.title}</h3><small>{x.source === 'budget' ? '本月可支配额度' : x.source === 'freedom' ? '自由基金' : '暂未决定'}</small></div><b><Money value={x.amount}/></b><div className="actions"><button className="primary" onClick={()=>onBuy(x.id)}>已购买</button><button onClick={()=>update({...ledger,wishes:ledger.wishes.filter(w=>w.id!==x.id)})}>删除</button></div></article>) : <Empty text="把想买的东西放进来，再决定它值不值得占用预算。"/>}</div><div className="notice">当前愿望预留：<b><Money value={stats.wishReserved}/></b></div></Page> }
 function Expenses({items,onAdd,onPay,onUndoPay,update,ledger}:{items:Expense[];onAdd:()=>void;onPay:(id:string)=>void;onUndoPay:(id:string)=>void;update:(l:Ledger)=>void;ledger:Ledger}) { return <Page title="固定支出" action="添加项目" onAction={onAdd}><p className="description">左滑项目可标记支付、停用或删除；标错后也可以撤回。下月会自动重新预留。</p><div className="cards">{items.map(x => {
   const paidThisMonth = x.paidMonth ? x.paidMonth === currentMonth : x.paid
   const toggleActive = () => update({...ledger,expenses:ledger.expenses.map(e=>e.id===x.id?{...e,active:!e.active}:e)})
@@ -151,12 +161,13 @@ function Expenses({items,onAdd,onPay,onUndoPay,update,ledger}:{items:Expense[];o
   const actionCount = x.active ? 3 : 2
   const status = paidThisMonth ? '本月已支付' : x.active ? '待支付' : '已停用'
   const statusClass = paidThisMonth ? 'paid' : x.active ? 'pending' : 'disabled'
-  return <SwipeActions key={x.id} className="expense-swipe" actionCount={actionCount} actions={swipeActions}><article className="expense"><div><h3>{x.title}</h3><div className="expense-meta"><small>{x.category}</small><span className={`status-badge ${statusClass}`}>{status}</span></div></div><b>{yuan(x.amount)}</b></article></SwipeActions>
+  return <SwipeActions key={x.id} className="expense-swipe" actionCount={actionCount} actions={swipeActions}><article className="expense"><div><h3>{x.title}</h3><div className="expense-meta"><small>{x.category}</small><span className={`status-badge ${statusClass}`}>{status}</span></div></div><b><Money value={x.amount}/></b></article></SwipeActions>
 })}</div></Page> }
 function SwipeActions({children,actions,actionCount=1,className=''}:{children:React.ReactNode;actions:React.ReactNode;actionCount?:number;className?:string}) {
   const [open,setOpen] = useState(false)
   const startX = useRef<number | null>(null)
   const dragX = useRef(0)
+  const swiped = useRef(false)
   const finishSwipe = () => {
     if (dragX.current < -45) setOpen(true)
     if (dragX.current > 35) setOpen(false)
@@ -165,9 +176,9 @@ function SwipeActions({children,actions,actionCount=1,className=''}:{children:Re
   }
   const actionWidth = actionCount * 72
   const swipeWidth = actionWidth
-  return <div className={`swipe-shell ${open ? 'open' : ''} ${className}`} style={{'--action-width':`${actionWidth}px`,'--swipe-width':`${swipeWidth}px`} as React.CSSProperties}>
-    <div className="swipe-actions" aria-hidden={!open} onClickCapture={()=>setOpen(false)}>{actions}</div>
-    <div className="swipe-content" onPointerDown={event=>{if((event.target as HTMLElement).closest('button'))return;startX.current=event.clientX;dragX.current=0}} onPointerMove={event=>{if(startX.current!==null)dragX.current=event.clientX-startX.current}} onPointerUp={finishSwipe} onPointerCancel={finishSwipe}>{children}</div>
+  return <div className={`swipe-shell ${open ? 'open' : ''} ${className}`} style={{'--action-width':`${actionWidth}px`,'--swipe-width':`${swipeWidth}px`} as React.CSSProperties} onPointerDown={event=>{if(!open&&(event.target as HTMLElement).closest('button'))return;startX.current=event.clientX;dragX.current=0;swiped.current=false}} onPointerMove={event=>{if(startX.current!==null){dragX.current=event.clientX-startX.current;if(Math.abs(dragX.current)>8)swiped.current=true}}} onPointerUp={finishSwipe} onPointerCancel={finishSwipe}>
+    <div className="swipe-actions" aria-hidden={!open} onClickCapture={event=>{if(swiped.current){event.preventDefault();event.stopPropagation();swiped.current=false;return}setOpen(false)}}>{actions}</div>
+    <div className="swipe-content">{children}</div>
   </div>
 }
 function SettingsPage({ledger,update,configured,user,syncState,onLogin,onSignOut,onReset,onUndoReset,canUndoReset}:{ledger:Ledger;update:(l:Ledger)=>void;configured:boolean;user:User|null;syncState:'offline'|'syncing'|'synced'|'error';onLogin:(email:string)=>Promise<string>;onSignOut:()=>Promise<void>;onReset:()=>void;onUndoReset:()=>void;canUndoReset:boolean}) {
