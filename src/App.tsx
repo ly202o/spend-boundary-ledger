@@ -111,7 +111,7 @@ export default function App() {
   const toggleTestData=async(active:boolean)=>{
     if(active){
       setStoredTestMode(true);setTestMode(true)
-      try{let copy=loadTest();if(!copy){const readXlsxFile=(await import('read-excel-file/browser')).default;const response=await fetch(`${import.meta.env.BASE_URL}qianji-test-data.xlsx`);if(!response.ok)throw new Error('测试数据读取失败');const raw=await readXlsxFile(await response.arrayBuffer());const parsed=parseQianJiRows(normalizeWorkbookRows(raw));copy={...ledger,transactions:parsed.transactions,updatedAt:undefined};saveTest(copy)}setLedger(copy)}catch(error){setStoredTestMode(false);setTestMode(false);throw error}
+      try{let copy=loadTest();if(!copy){const readXlsxFile=(await import('read-excel-file/browser')).default;const response=await fetch(`${import.meta.env.BASE_URL}qianji-test-data.xlsx`);if(!response.ok)throw new Error('测试数据读取失败');const raw=await readXlsxFile(await response.arrayBuffer());const parsed=parseQianJiRows(normalizeWorkbookRows(raw));copy={...ledger,transactions:parsed.transactions.filter(item=>item.date>='2026-09-16'),updatedAt:undefined};saveTest(copy)}setLedger(copy)}catch(error){setStoredTestMode(false);setTestMode(false);throw error}
     }else{saveTest(ledger);setStoredTestMode(false);setTestMode(false);setLedger(load())}
   }
   const display=ledger.display||defaultDisplay

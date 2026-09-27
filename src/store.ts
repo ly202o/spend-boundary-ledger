@@ -3,6 +3,7 @@ import type { Ledger } from './types'
 const key = 'spend-boundary-ledger-v1'
 const testKey = 'spend-boundary-ledger-test-v1'
 const testModeKey = 'spend-boundary-ledger-test-mode'
+const testDataStart = '2026-09-16'
 export const initialLedger: Ledger = {
   monthlyBudget: 4000, mealBudget: 1500, mode: 'fixed', transactions: [], wishes: [],
   expenses: [
@@ -34,7 +35,14 @@ export function save(data: Ledger) { localStorage.setItem(key, JSON.stringify(da
 export function loadTest(): Ledger | null {
   try {
     const ledger = JSON.parse(localStorage.getItem(testKey) || '') as Ledger
-    return ledger?.transactions ? ledger : null
+    if (!ledger?.transactions) return null
+    const filtered = ledger.transactions.filter(item => item.date >= testDataStart)
+    if (filtered.length !== ledger.transactions.length) {
+      const migrated = { ...ledger, transactions: filtered }
+      saveTest(migrated)
+      return migrated
+    }
+    return ledger
   } catch { return null }
 }
 export function saveTest(data: Ledger) { localStorage.setItem(testKey, JSON.stringify(data)) }
