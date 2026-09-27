@@ -1,27 +1,35 @@
-import { useEffect, useRef, useMemo, useState } from 'react'
-import { Check, CircleDollarSign, Heart, Home, Pause, Pencil, Play, Plus, ReceiptText, RotateCcw, Settings, Sparkles, Trash2, WalletCards, X } from 'lucide-react'
-import { load, save } from './store'
+import { createContext, useContext, useEffect, useRef, useMemo, useState } from 'react'
+import { CalendarDays, Check, CircleDollarSign, Download, Heart, Home, Pause, Pencil, Play, Plus, ReceiptText, RotateCcw, Settings, Sparkles, Trash2, Upload, WalletCards, X } from 'lucide-react'
+import { isTestMode, load, loadTest, save, saveTest, setStoredTestMode } from './store'
 import { calc } from './budget'
-import type { Expense, Ledger, Transaction, Wish } from './types'
+import type { DisplayPreferences, Expense, Ledger, Transaction, Wish } from './types'
 import type { User } from '@supabase/supabase-js'
 import { supabase, syncConfigured } from './supabase'
 import { fetchCloudLedger, saveCloudLedger, stamp } from './sync'
 import { spendingPeriodDays, spendingPeriodSummary, type SpendingPeriod } from './period'
+import { normalizeWorkbookRows, parseQianJiRows, transactionsToQianJiRows, type QianJiImportResult } from './qianji'
 
-const yuan = (n: number) => `${n < 0 ? '−' : ''}¥${Math.abs(n).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+const defaultDisplay:DisplayPreferences={groupThousands:false,font:'system'}
+const DisplayContext=createContext(defaultDisplay)
+const yuan = (n: number, groupThousands=false) => `${n < 0 ? '−' : ''}¥${Math.abs(n).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping:groupThousands })}`
 function Money({value,currency=true}:{value:number;currency?:boolean}) {
-  const formatted=yuan(value)
+  const {groupThousands}=useContext(DisplayContext)
+  const formatted=yuan(value,groupThousands)
   const [whole,decimal]=formatted.split('.')
   return <>{currency?whole:whole.replace('¥','')}<span className="money-decimal">.{decimal}</span></>
 }
 const now = new Date()
 const today = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`
 const currentMonth = today.slice(0, 7)
+const monthDate=(month:string)=>month===currentMonth?new Date():new Date(+month.slice(0,4),+month.slice(5,7),0,12)
+const dateKey=(date:Date)=>`${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`
 const uid = () => crypto.randomUUID()
 const validAmount = (value: string) => Number.isFinite(+value) && +value > 0 && +value <= 100000000 && /^\d+(\.\d{1,2})?$/.test(value)
 
 export default function App() {
-  const [ledger, setLedger] = useState<Ledger>(load)
+  const [testMode,setTestMode] = useState(()=>isTestMode()&&!!loadTest())
+  const [ledger, setLedger] = useState<Ledger>(()=>isTestMode()?loadTest()||load():load())
+  const [selectedMonth,setSelectedMonth] = useState(currentMonth)
   const [tab, setTab] = useState<'home'|'records'|'wishes'|'expenses'|'settings'>('home')
   const [modal, setModal] = useState<'transaction'|'wish'|'expense'|null>(null)
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null)
@@ -30,8 +38,8 @@ export default function App() {
   const [syncState, setSyncState] = useState<'offline'|'syncing'|'synced'|'error'>('offline')
   const update = (next: Ledger) => {
     const stamped = stamp(next)
-    setLedger(stamped); save(stamped)
-    if (user) {
+    setLedger(stamped); testMode?saveTest(stamped):save(stamped)
+    if (user&&!testMode) {
       setSyncState('syncing')
       saveCloudLedger(user, stamped).then(() => setSyncState('synced')).catch(() => setSyncState('error'))
     }
@@ -40,7 +48,7 @@ export default function App() {
     if (!supabase) return
     const hydrate = async (nextUser: User | null) => {
       setUser(nextUser)
-      if (!nextUser) { setSyncState('offline'); return }
+      if (!nextUser||testMode) { setSyncState('offline'); return }
       setSyncState('syncing')
       try {
         const remote = await fetchCloudLedger(nextUser)
@@ -56,17 +64,19 @@ export default function App() {
     supabase.auth.getUser().then(({ data }) => hydrate(data.user))
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => { void hydrate(session?.user ?? null) })
     return () => subscription.unsubscribe()
-  }, [])
+  }, [testMode])
   const requestSyncLogin = async (email: string) => {
     if (!supabase) return '请先完成 Supabase 配置。'
     const { error } = await supabase.auth.signInWithOtp({ email, options: { emailRedirectTo: window.location.origin + window.location.pathname } })
     return error?.message || '验证邮件已发送，请在此设备打开邮件中的链接。'
   }
   const signOut = async () => { await supabase?.auth.signOut() }
-  const stats = useMemo(() => calc(ledger), [ledger])
+  const referenceDate=useMemo(()=>monthDate(selectedMonth),[selectedMonth])
+  const selectedDate=dateKey(referenceDate)
+  const stats = useMemo(() => calc(ledger,referenceDate), [ledger,referenceDate])
   const paidExpense = (id: string) => {
     const exp = ledger.expenses.find(x => x.id === id)! 
-    update({ ...ledger, expenses: ledger.expenses.map(x => x.id === id ? { ...x, paid: true, paidMonth: currentMonth } : x), transactions: [{ id: uid(), title: exp.title, amount: exp.amount, category: exp.category, date: today, source: 'fixed', fixedExpenseId: exp.id }, ...ledger.transactions] })
+    update({ ...ledger, expenses: ledger.expenses.map(x => x.id === id ? { ...x, paid: true, paidMonth: selectedMonth } : x), transactions: [{ id: uid(), title: exp.title, amount: exp.amount, category: exp.category, date: selectedDate, source: 'fixed', fixedExpenseId: exp.id }, ...ledger.transactions] })
   }
   const undoPaidExpense = (id: string) => {
     const exp = ledger.expenses.find(x => x.id === id)
@@ -76,8 +86,8 @@ export default function App() {
       ...ledger,
       expenses: ledger.expenses.map(x => x.id === id ? { ...x, paid: false, paidMonth: undefined } : x),
       transactions: ledger.transactions.filter(transaction => {
-        if (transaction.fixedExpenseId === id && transaction.date.startsWith(currentMonth)) return false
-        const isLegacyMatch = !transaction.fixedExpenseId && !removedLegacyMatch && transaction.source === 'fixed' && transaction.title === exp.title && transaction.amount === exp.amount && transaction.date.startsWith(currentMonth)
+        if (transaction.fixedExpenseId === id && transaction.date.startsWith(selectedMonth)) return false
+        const isLegacyMatch = !transaction.fixedExpenseId && !removedLegacyMatch && transaction.source === 'fixed' && transaction.title === exp.title && transaction.amount === exp.amount && transaction.date.startsWith(selectedMonth)
         if (isLegacyMatch) removedLegacyMatch = true
         return !isLegacyMatch
       })
@@ -96,16 +106,25 @@ export default function App() {
   const buyWish = (id: string) => {
     const wish = ledger.wishes.find(x => x.id === id)
     if (!wish) return
-    update({ ...ledger, wishes: ledger.wishes.filter(x => x.id !== id), transactions: [{ id: uid(), title: wish.title, amount: wish.amount, category: '愿望', date: today, source: 'wish', budgetImpact: wish.source === 'budget' }, ...ledger.transactions] })
+    update({ ...ledger, wishes: ledger.wishes.filter(x => x.id !== id), transactions: [{ id: uid(), title: wish.title, amount: wish.amount, category: '愿望', date: selectedDate, source: 'wish', budgetImpact: wish.source === 'budget' }, ...ledger.transactions] })
   }
-  return <main className="app">
-    <header><div className="brand"><WalletCards size={26}/><span>消费边界</span></div><div className="header-actions"><div className="month">{now.getFullYear()} 年 {now.getMonth()+1} 月</div><button className={`settings-shortcut ${tab === 'settings' ? 'active' : ''}`} aria-label="设置" onClick={()=>setTab('settings')}><Settings size={20}/></button></div></header>
+  const toggleTestData=async(active:boolean)=>{
+    if(active){
+      setStoredTestMode(true);setTestMode(true)
+      try{let copy=loadTest();if(!copy){const readXlsxFile=(await import('read-excel-file/browser')).default;const response=await fetch(`${import.meta.env.BASE_URL}qianji-test-data.xlsx`);if(!response.ok)throw new Error('测试数据读取失败');const raw=await readXlsxFile(await response.arrayBuffer());const parsed=parseQianJiRows(normalizeWorkbookRows(raw));copy={...ledger,transactions:parsed.transactions,updatedAt:undefined};saveTest(copy)}setLedger(copy)}catch(error){setStoredTestMode(false);setTestMode(false);throw error}
+    }else{saveTest(ledger);setStoredTestMode(false);setTestMode(false);setLedger(load())}
+  }
+  const display=ledger.display||defaultDisplay
+  const monthLabel=`${selectedMonth.slice(0,4)} 年 ${Number(selectedMonth.slice(5,7))} 月`
+  const monthTransactions=ledger.transactions.filter(item=>item.date.startsWith(selectedMonth))
+  return <DisplayContext.Provider value={display}><main className={`app font-${display.font}`}>
+    <header><div className="brand"><WalletCards size={21}/><span>消费边界</span></div><div className="header-actions"><label className="month-picker" aria-label="选择账本月份"><CalendarDays size={19}/><span>{monthLabel}</span><input type="month" value={selectedMonth} onChange={event=>setSelectedMonth(event.target.value||currentMonth)}/></label><button className={`settings-shortcut ${tab === 'settings' ? 'active' : ''}`} aria-label="设置" onClick={()=>setTab('settings')}><Settings size={20}/></button></div></header>
     <section className="content">
-      {tab === 'home' && <HomePage stats={stats} ledger={ledger} />}
-      {tab === 'records' && <Records items={ledger.transactions} onDelete={deleteTransaction} onEdit={setEditingTransaction} />}
+      {tab === 'home' && <HomePage stats={stats} ledger={{...ledger,transactions:monthTransactions}} referenceDate={referenceDate} />}
+      {tab === 'records' && <Records items={monthTransactions} onDelete={deleteTransaction} onEdit={setEditingTransaction} />}
       {tab === 'wishes' && <Wishes ledger={ledger} stats={stats} onAdd={() => setModal('wish')} update={update} onBuy={buyWish} />}
-      {tab === 'expenses' && <Expenses items={ledger.expenses} onAdd={() => setModal('expense')} onPay={paidExpense} onUndoPay={undoPaidExpense} update={update} ledger={ledger} />}
-      {tab === 'settings' && <SettingsPage ledger={ledger} update={update} configured={syncConfigured} user={user} syncState={syncState} onLogin={requestSyncLogin} onSignOut={signOut} onReset={resetData} onUndoReset={undoReset} canUndoReset={!!resetBackup} />}
+      {tab === 'expenses' && <Expenses items={ledger.expenses} activeMonth={selectedMonth} onAdd={() => setModal('expense')} onPay={paidExpense} onUndoPay={undoPaidExpense} update={update} ledger={ledger} />}
+      {tab === 'settings' && <SettingsPage ledger={ledger} update={update} testMode={testMode} onToggleTestData={toggleTestData} configured={syncConfigured} user={user} syncState={syncState} onLogin={requestSyncLogin} onSignOut={signOut} onReset={resetData} onUndoReset={undoReset} canUndoReset={!!resetBackup} />}
     </section>
     <nav aria-label="主导航">
       <div className="nav-tabs">
@@ -117,12 +136,12 @@ export default function App() {
     {editingTransaction && <TransactionForm initial={editingTransaction} close={() => setEditingTransaction(null)} save={(x) => { update({ ...ledger, transactions: ledger.transactions.map(item => item.id === x.id ? x : item) }); setEditingTransaction(null) }}/>} 
     {modal === 'wish' && <WishForm close={() => setModal(null)} add={(x) => update({ ...ledger, wishes: [x, ...ledger.wishes] })}/>} 
     {modal === 'expense' && <ExpenseForm close={() => setModal(null)} add={(x) => update({ ...ledger, expenses: [...ledger.expenses, x] })}/>} 
-  </main>
+  </main></DisplayContext.Provider>
 }
 
-function HomePage({ stats, ledger }: { stats: ReturnType<typeof calc>; ledger: Ledger }) {
+function HomePage({ stats, ledger, referenceDate }: { stats: ReturnType<typeof calc>; ledger: Ledger; referenceDate:Date }) {
   const [period,setPeriod] = useState<SpendingPeriod>('week')
-  return <><div className="overview"><article className="hero"><span className="hero-label"><WalletCards size={18}/>本月真正可支配</span><strong><Money value={stats.available}/></strong><div className="hero-bottom"><span>生活预算<b><Money value={ledger.monthlyBudget}/></b></span><span>实际支出<b><Money value={stats.spent}/></b></span><span>三餐剩余<b><Money value={stats.mealRemaining}/></b></span></div></article><SpendingPeriodCard period={period} setPeriod={setPeriod} transactions={ledger.transactions} dailyLimit={stats.mealDaily}/></div>
+  return <><div className="overview"><article className="hero"><span className="hero-label"><WalletCards size={18}/>本月真正可支配</span><strong><Money value={stats.available}/></strong><div className="hero-bottom"><span>生活预算<b><Money value={ledger.monthlyBudget}/></b></span><span>实际支出<b><Money value={stats.spent}/></b></span><span>三餐剩余<b><Money value={stats.mealRemaining}/></b></span></div></article><SpendingPeriodCard period={period} setPeriod={setPeriod} transactions={ledger.transactions} dailyLimit={stats.mealDaily} referenceDate={referenceDate}/></div>
   <div className="grid home-metrics"><Metric label="为愿望留一点" value={<Money value={stats.wishReserved}/>} hint="高强度愿望 · 本月资金" accent/></div>
   <section className="panel"><div className="section-title"><h2>最近账目</h2></div>{ledger.transactions.length ? ledger.transactions.slice(0,4).map(x => <div className="line" key={x.id}><div><b>{x.title}</b><small>{x.category} · {x.date}</small></div><strong><Money value={-x.amount}/></strong></div>) : <Empty text="还没有账目。点击下方加号记录第一笔消费。"/>}</section>
   <p className="budget-note">本机保存 · 预留支付不重复扣款 · 自由基金独立于生活预算</p></>
@@ -137,25 +156,25 @@ function SwipeRecord({item,onDelete,onEdit}:{item:Transaction;onDelete:()=>void;
     </div>
   </SwipeActions>
 }
-function SpendingPeriodCard({period,setPeriod,transactions,dailyLimit}:{period:SpendingPeriod;setPeriod:(period:SpendingPeriod)=>void;transactions:Transaction[];dailyLimit:number}) {
+function SpendingPeriodCard({period,setPeriod,transactions,dailyLimit,referenceDate}:{period:SpendingPeriod;setPeriod:(period:SpendingPeriod)=>void;transactions:Transaction[];dailyLimit:number;referenceDate:Date}) {
   const [category,setCategory] = useState<'meal'|'other'|'all'>('meal')
   const labels:Record<SpendingPeriod,string>={week:'本周',seven:'近7日',month:'本月'}
   const filtered=useMemo(()=>category==='all'?transactions:transactions.filter(item=>category==='meal'?item.source==='meal':item.source!=='meal'),[transactions,category])
-  const summary=useMemo(()=>spendingPeriodSummary(filtered,period),[filtered,period])
-  const days=useMemo(()=>spendingPeriodDays(filtered,period),[filtered,period])
+  const summary=useMemo(()=>spendingPeriodSummary(filtered,period,referenceDate),[filtered,period,referenceDate])
+  const days=useMemo(()=>spendingPeriodDays(filtered,period,referenceDate),[filtered,period,referenceDate])
   const maxAmount=Math.max(1,...days.map(day=>day.amount))
   const tone=(amount:number)=>amount<=0?'zero':category==='other'?'other':category==='all'?'all':dailyLimit<=0||amount>dailyLimit?'over':amount>=dailyLimit*.8?'near':'within'
   const spentHeight=(amount:number)=>amount>0?Math.max(8,amount/maxAmount*68):0
   const weekdays=['一','二','三','四','五','六','日']
   const actions=<>{(['week','seven','month'] as const).map(id=><button key={id} className={`period-choice ${period===id?'selected':''}`} aria-label={`切换到${labels[id]}`} onClick={()=>setPeriod(id)}><span>{labels[id]}</span></button>)}</>
   const weekLimit=dailyLimit*7
-  const todaySpent=filtered.filter(item=>item.date===today).reduce((sum,item)=>sum+item.amount,0)
+  const todaySpent=filtered.filter(item=>item.date===dateKey(referenceDate)).reduce((sum,item)=>sum+item.amount,0)
   const categoryLabel=category==='meal'?'三餐':category==='other'?'其他':'全部'
-  return <SwipeActions className="period-swipe" actionCount={3} actions={actions}><article className="period-card"><div className="period-heading"><span className="eyebrow">{labels[period]}支出</span><div className="period-filter" role="group" aria-label="支出分类"><button className={category==='meal'?'active':''} onClick={()=>setCategory('meal')}>三餐支出</button><button className={category==='other'?'active':''} onClick={()=>setCategory('other')}>其他支出</button><button className={category==='all'?'active':''} onClick={()=>setCategory('all')}>全部支出</button></div></div><div className="period-meta">{category==='meal'?<div className="period-budget">{period==='week'&&<span>周额 <Money value={weekLimit}/>　剩余 <b><Money value={weekLimit-summary.total}/></b></span>}<span>日额 <Money value={dailyLimit}/>　剩余 <b><Money value={dailyLimit-todaySpent}/></b></span></div>:<span>{categoryLabel}支出不计入三餐预算</span>}<small>左滑切换周期</small></div><div className="period-total"><strong><Money value={summary.total}/></strong><span>日均 <b><Money value={summary.dailyAverage}/></b></span></div>{period==='month'?<div className="calendar-chart"><div className="calendar-weekdays">{weekdays.map(day=><span key={day}>{day}</span>)}</div><div className="calendar-grid" style={{'--start-column':String((days[0].date.getDay()+6)%7+1)} as React.CSSProperties}>{days.map((day,index)=><span key={day.dateKey} className={`${day.future?'future':''} ${day.amount?'spent':''} ${tone(day.amount)}`} style={{'--heat':String(Math.min(1,day.amount/maxAmount))} as React.CSSProperties} title={`${day.dateKey} ${yuan(day.amount)}`}><b>{day.date.getDate()}</b>{day.amount>0&&<i/>}{index===0&&<em>16</em>}</span>)}</div></div>:<div className="bar-chart" aria-label={`${labels[period]}${categoryLabel}支出柱状图`}>{days.map((day,index)=>{const height=spentHeight(day.amount);return <div className={`bar-day ${day.future?'future':''} ${tone(day.amount)}`} key={day.dateKey}><div className="bar-track" title={`${day.dateKey}：支出 ${yuan(day.amount)}`}><i style={{height:`${height}px`}}/>{day.amount>0&&<div className="bar-value" style={{bottom:`${height+4}px`}}><Money value={day.amount} currency={false}/></div>}</div><span>{period==='week'?`周${weekdays[index]}`:`${day.date.getMonth()+1}/${day.date.getDate()}`}</span></div>})}</div>}</article></SwipeActions>
+  return <SwipeActions className="period-swipe" actionCount={3} actions={actions}><article className="period-card"><div className="period-heading"><span className="eyebrow">{labels[period]}支出</span><div className="period-filter" role="group" aria-label="支出分类"><button className={category==='meal'?'active':''} onClick={()=>setCategory('meal')}>三餐支出</button><button className={category==='other'?'active':''} onClick={()=>setCategory('other')}>其他支出</button><button className={category==='all'?'active':''} onClick={()=>setCategory('all')}>全部支出</button></div></div><div className="period-meta">{category==='meal'?<div className="period-budget">{period==='week'&&<span>周额 <Money value={weekLimit}/>　剩余 <b><Money value={weekLimit-summary.total}/></b></span>}<span>日额 <Money value={dailyLimit}/>　剩余 <b><Money value={dailyLimit-todaySpent}/></b></span></div>:<span>{categoryLabel}支出不计入三餐预算</span>}</div><div className="period-total"><strong><Money value={summary.total}/></strong><span>日均 <b><Money value={summary.dailyAverage}/></b></span></div>{period==='month'?<div className="calendar-chart"><div className="calendar-weekdays">{weekdays.map(day=><span key={day}>{day}</span>)}</div><div className="calendar-grid" style={{'--start-column':String((days[0].date.getDay()+6)%7+1)} as React.CSSProperties}>{days.map((day,index)=><span key={day.dateKey} className={`${day.future?'future':''} ${day.amount?'spent':''} ${tone(day.amount)}`} style={{'--heat':String(Math.min(1,day.amount/maxAmount))} as React.CSSProperties} title={`${day.dateKey} ${yuan(day.amount)}`}><b>{day.date.getDate()}</b>{day.amount>0&&<i/>}{index===0&&<em>16</em>}</span>)}</div></div>:<div className="bar-chart" aria-label={`${labels[period]}${categoryLabel}支出柱状图`}>{days.map((day,index)=>{const height=spentHeight(day.amount);return <div className={`bar-day ${day.future?'future':''} ${tone(day.amount)}`} key={day.dateKey}><div className="bar-track" title={`${day.dateKey}：支出 ${yuan(day.amount)}`}><i style={{height:`${height}px`}}/>{day.amount>0&&<div className="bar-value" style={{bottom:`${height+4}px`}}><Money value={day.amount} currency={false}/></div>}</div><span>{period==='week'?`周${weekdays[index]}`:`${day.date.getMonth()+1}/${day.date.getDate()}`}</span></div>})}</div>}</article></SwipeActions>
 }
-function Wishes({ledger,stats,onAdd,update,onBuy}:{ledger:Ledger;stats:ReturnType<typeof calc>;onAdd:()=>void;update:(l:Ledger)=>void;onBuy:(id:string)=>void}) { return <Page title="愿望单" action="添加愿望" onAction={onAdd}><p className="description">强度为 8–10 且使用本月预算的愿望，会自动预留金额。购买后预留转换为实际支出，只扣一次。</p><div className="cards">{ledger.wishes.length ? ledger.wishes.map(x => <article className="wish" key={x.id}><div><span className="pill">{x.intensity}/10 想要</span><h3>{x.title}</h3><small>{x.source === 'budget' ? '本月可支配额度' : x.source === 'freedom' ? '自由基金' : '暂未决定'}</small></div><b><Money value={x.amount}/></b><div className="actions"><button className="primary" onClick={()=>onBuy(x.id)}>已购买</button><button onClick={()=>update({...ledger,wishes:ledger.wishes.filter(w=>w.id!==x.id)})}>删除</button></div></article>) : <Empty text="把想买的东西放进来，再决定它值不值得占用预算。"/>}</div><div className="notice">当前愿望预留：<b><Money value={stats.wishReserved}/></b></div></Page> }
-function Expenses({items,onAdd,onPay,onUndoPay,update,ledger}:{items:Expense[];onAdd:()=>void;onPay:(id:string)=>void;onUndoPay:(id:string)=>void;update:(l:Ledger)=>void;ledger:Ledger}) { return <Page title="固定支出" action="添加项目" onAction={onAdd}><p className="description">左滑项目可标记支付、停用或删除；标错后也可以撤回。下月会自动重新预留。</p><div className="cards">{items.map(x => {
-  const paidThisMonth = x.paidMonth ? x.paidMonth === currentMonth : x.paid
+function Wishes({ledger,stats,onAdd,update,onBuy}:{ledger:Ledger;stats:ReturnType<typeof calc>;onAdd:()=>void;update:(l:Ledger)=>void;onBuy:(id:string)=>void}) { return <Page title="愿望单" action="添加愿望" onAction={onAdd}><p className="description">强度为 8–10 且使用本月预算的愿望，会自动预留金额。购买后预留转换为实际支出，只扣一次。</p><div className="cards">{ledger.wishes.length ? ledger.wishes.map(x => <SwipeActions key={x.id} className="wish-swipe" actionCount={2} actions={<><button className="swipe-pay" onClick={()=>onBuy(x.id)}><Check size={19}/><span>已购买</span></button><button className="swipe-delete" onClick={()=>update({...ledger,wishes:ledger.wishes.filter(w=>w.id!==x.id)})}><Trash2 size={19}/><span>删除</span></button></>}><article className="wish"><div><span className="pill">{x.intensity}/10 想要</span><h3>{x.title}</h3><small>{x.source === 'budget' ? '本月可支配额度' : x.source === 'freedom' ? '自由基金' : '暂未决定'}</small></div><b><Money value={x.amount}/></b></article></SwipeActions>) : <Empty text="把想买的东西放进来，再决定它值不值得占用预算。"/>}</div><div className="notice">当前愿望预留：<b><Money value={stats.wishReserved}/></b></div></Page> }
+function Expenses({items,activeMonth,onAdd,onPay,onUndoPay,update,ledger}:{items:Expense[];activeMonth:string;onAdd:()=>void;onPay:(id:string)=>void;onUndoPay:(id:string)=>void;update:(l:Ledger)=>void;ledger:Ledger}) { return <Page title="固定支出" action="添加项目" onAction={onAdd}><p className="description">项目支持支付、停用、撤回与删除。下月会自动重新预留。</p><div className="cards">{items.map(x => {
+  const paidThisMonth = x.paidMonth ? x.paidMonth === activeMonth : x.paid
   const toggleActive = () => update({...ledger,expenses:ledger.expenses.map(e=>e.id===x.id?{...e,active:!e.active}:e)})
   const swipeActions = <>{x.active && (paidThisMonth ? <button className="swipe-undo" aria-label={`撤回 ${x.title} 的支付`} onClick={()=>onUndoPay(x.id)}><RotateCcw size={19}/><span>撤回</span></button> : <button className="swipe-pay" aria-label={`标记 ${x.title} 已支付`} onClick={()=>onPay(x.id)}><Check size={20}/><span>支付</span></button>)}<button className="swipe-toggle" aria-label={`${x.active?'停用':'启用'} ${x.title}`} onClick={toggleActive}>{x.active?<Pause size={19}/>:<Play size={19}/>}<span>{x.active?'停用':'启用'}</span></button><button className="swipe-delete" aria-label={`删除 ${x.title}`} onClick={()=>update({...ledger,expenses:ledger.expenses.filter(e=>e.id!==x.id)})}><Trash2 size={19}/><span>删除</span></button></>
   const actionCount = x.active ? 3 : 2
@@ -181,9 +200,48 @@ function SwipeActions({children,actions,actionCount=1,className=''}:{children:Re
     <div className="swipe-content">{children}</div>
   </div>
 }
-function SettingsPage({ledger,update,configured,user,syncState,onLogin,onSignOut,onReset,onUndoReset,canUndoReset}:{ledger:Ledger;update:(l:Ledger)=>void;configured:boolean;user:User|null;syncState:'offline'|'syncing'|'synced'|'error';onLogin:(email:string)=>Promise<string>;onSignOut:()=>Promise<void>;onReset:()=>void;onUndoReset:()=>void;canUndoReset:boolean}) {
+function SettingsPage({ledger,update,testMode,onToggleTestData,configured,user,syncState,onLogin,onSignOut,onReset,onUndoReset,canUndoReset}:{ledger:Ledger;update:(l:Ledger)=>void;testMode:boolean;onToggleTestData:(active:boolean)=>Promise<void>;configured:boolean;user:User|null;syncState:'offline'|'syncing'|'synced'|'error';onLogin:(email:string)=>Promise<string>;onSignOut:()=>Promise<void>;onReset:()=>void;onUndoReset:()=>void;canUndoReset:boolean}) {
   const [confirmingReset,setConfirmingReset] = useState(false)
-  return <Page title="预算设置"><div className="panel settings"><label>月生活预算<input type="number" value={ledger.monthlyBudget} onChange={e=>update({...ledger,monthlyBudget:+e.target.value})}/></label><label>三餐月预算<input type="number" value={ledger.mealBudget} onChange={e=>update({...ledger,mealBudget:+e.target.value})}/></label><label>三餐日额模式<select value={ledger.mode} onChange={e=>update({...ledger,mode:e.target.value as Ledger['mode']})}><option value="dynamic">动态均摊</option><option value="fixed">固定日额</option></select></label><SyncSettings configured={configured} user={user} syncState={syncState} onLogin={onLogin} onSignOut={onSignOut}/><section className="reset-card"><div><b>重置数据</b><small>清空账目、愿望和固定支出，预算恢复为默认值。</small></div>{confirmingReset?<div className="reset-confirm"><span>确定要重置全部数据吗？</span><button type="button" onClick={()=>setConfirmingReset(false)}>取消</button><button type="button" className="danger" onClick={()=>{onReset();setConfirmingReset(false)}}>确认重置</button></div>:<button type="button" className="reset-button" onClick={()=>setConfirmingReset(true)}>一键重置</button>}{canUndoReset&&<button type="button" className="undo-reset" onClick={onUndoReset}><RotateCcw size={16}/>撤回刚才的重置</button>}</section><p>未登录时数据仅保存在当前设备；登录后会自动同步。</p></div></Page>
+  const [testNotice,setTestNotice] = useState('')
+  const display=ledger.display||defaultDisplay
+  return <Page title="预算设置"><div className="panel settings"><label>月生活预算<input type="number" value={ledger.monthlyBudget} onChange={e=>update({...ledger,monthlyBudget:+e.target.value})}/></label><label>三餐月预算<input type="number" value={ledger.mealBudget} onChange={e=>update({...ledger,mealBudget:+e.target.value})}/></label><label>三餐日额模式<select value={ledger.mode} onChange={e=>update({...ledger,mode:e.target.value as Ledger['mode']})}><option value="dynamic">动态均摊</option><option value="fixed">固定日额</option></select></label><section className="display-card"><b>显示设置</b><label className="switch-row"><span>金额使用千位分隔符<small>{display.groupThousands?'显示为 1,000.00':'显示为 1000.00'}</small></span><input type="checkbox" checked={display.groupThousands} onChange={e=>update({...ledger,display:{...display,groupThousands:e.target.checked}})}/></label><label>界面字体<select value={display.font} onChange={e=>update({...ledger,display:{...display,font:e.target.value as DisplayPreferences['font']}})}><option value="system">系统默认</option><option value="rounded">圆润字体</option><option value="serif">宋体</option></select></label></section><section className="test-data-card"><div><b>使用测试数据</b><small>使用你提供的钱迹账单副本。测试中的修改会单独保存，不影响正式账本。</small>{testNotice&&<small className="test-error">{testNotice}</small>}</div><button type="button" className={`toggle ${testMode?'on':''}`} role="switch" aria-checked={testMode} aria-label="使用测试数据" onClick={()=>{setTestNotice('');void onToggleTestData(!testMode).catch(error=>setTestNotice(error instanceof Error?error.message:'测试数据切换失败'))}}><span/></button></section><SyncSettings configured={configured} user={user} syncState={syncState} onLogin={onLogin} onSignOut={onSignOut}/><ImportExportSettings ledger={ledger} update={update}/><section className="reset-card"><div><b>重置数据</b><small>清空当前账本的账目、愿望和固定支出，预算恢复为默认值。</small></div>{confirmingReset?<div className="reset-confirm"><span>确定要重置当前账本吗？</span><button type="button" onClick={()=>setConfirmingReset(false)}>取消</button><button type="button" className="danger" onClick={()=>{onReset();setConfirmingReset(false)}}>确认重置</button></div>:<button type="button" className="reset-button" onClick={()=>setConfirmingReset(true)}>一键重置</button>}{canUndoReset&&<button type="button" className="undo-reset" onClick={onUndoReset}><RotateCcw size={16}/>撤回刚才的重置</button>}</section><p>{testMode?'当前正在使用测试账本，修改只保存在测试副本。':'未登录时数据仅保存在当前设备；登录后会自动同步。'}</p></div></Page>
+}
+function ImportExportSettings({ledger,update}:{ledger:Ledger;update:(ledger:Ledger)=>void}) {
+  const inputRef = useRef<HTMLInputElement>(null)
+  const [preview,setPreview] = useState<QianJiImportResult|null>(null)
+  const [fileName,setFileName] = useState('')
+  const [notice,setNotice] = useState('')
+  const [busy,setBusy] = useState(false)
+  const inspectFile = async (file?:File) => {
+    if (!file) return
+    setBusy(true); setNotice('')
+    try {
+      const readXlsxFile = (await import('read-excel-file/browser')).default
+      const raw = await readXlsxFile(file)
+      const next = parseQianJiRows(normalizeWorkbookRows(raw), new Set(ledger.transactions.map(item=>item.id)))
+      setPreview(next); setFileName(file.name)
+    } catch (error) {
+      setPreview(null); setNotice(error instanceof Error ? error.message : '文件读取失败，请重新选择。')
+    } finally { setBusy(false); if(inputRef.current) inputRef.current.value='' }
+  }
+  const confirmImport = () => {
+    if (!preview?.transactions.length) return
+    const transactions = [...preview.transactions, ...ledger.transactions].sort((a,b)=>b.date.localeCompare(a.date))
+    update({...ledger,transactions})
+    setNotice(`已导入 ${preview.transactions.length} 笔支出。`); setPreview(null); setFileName('')
+  }
+  const exportFile = async () => {
+    setBusy(true); setNotice('')
+    try {
+      const writeXlsxFile = (await import('write-excel-file/browser')).default
+      const source = transactionsToQianJiRows(ledger.transactions)
+      const sheet = source.map((row,rowIndex)=>row.map(value=>({ value: value as string|number, type: typeof value === 'number' ? Number : String, fontWeight: rowIndex===0 ? 'bold' as const : undefined, textColor: rowIndex===0 ? '#FFFFFF' : undefined, backgroundColor: rowIndex===0 ? '#087D72' : undefined, align: rowIndex===0 ? 'center' as const : 'left' as const })))
+      const columns = source[0].map((_,index)=>({width:[2,3,10].includes(index)?22:[1,4,6].includes(index)?16:12}))
+      await writeXlsxFile(sheet,{sheet:'账单',columns,showGridLines:false}).toFile(`消费边界账单_${today}.xlsx`)
+      setNotice(`已导出 ${ledger.transactions.length} 笔账目。`)
+    } catch { setNotice('导出失败，请稍后重试。') } finally { setBusy(false) }
+  }
+  return <section className="transfer-card"><div className="transfer-heading"><div><b>账目导入与导出</b><small>支持钱迹导出的 Excel；导入只加入支出，且自动跳过重复账目。</small></div></div><input ref={inputRef} className="file-input" type="file" accept=".xlsx" onChange={event=>void inspectFile(event.target.files?.[0])}/><div className="transfer-actions"><button type="button" onClick={()=>inputRef.current?.click()} disabled={busy}><Upload size={17}/>{busy?'处理中…':'导入 Excel'}</button><button type="button" onClick={()=>void exportFile()} disabled={busy||!ledger.transactions.length}><Download size={17}/>导出 Excel</button></div>{preview&&<div className="import-preview"><b>{fileName}</b><span>可导入 {preview.transactions.length} 笔</span><small>{preview.skippedIncome} 笔收入已跳过 · {preview.duplicates} 笔重复已跳过 · {preview.skippedInvalid} 笔无法识别</small><div><button type="button" onClick={()=>{setPreview(null);setFileName('')}}>取消</button><button type="button" className="primary" disabled={!preview.transactions.length} onClick={confirmImport}>确认导入</button></div></div>}{notice&&<small className="transfer-notice" role="status">{notice}</small>}</section>
 }
 function SyncSettings({configured,user,syncState,onLogin,onSignOut}:{configured:boolean;user:User|null;syncState:'offline'|'syncing'|'synced'|'error';onLogin:(email:string)=>Promise<string>;onSignOut:()=>Promise<void>}) {
   const [email,setEmail] = useState('')

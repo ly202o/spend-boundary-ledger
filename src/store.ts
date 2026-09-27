@@ -1,6 +1,8 @@
 import type { Ledger } from './types'
 
 const key = 'spend-boundary-ledger-v1'
+const testKey = 'spend-boundary-ledger-test-v1'
+const testModeKey = 'spend-boundary-ledger-test-mode'
 export const initialLedger: Ledger = {
   monthlyBudget: 4000, mealBudget: 1500, mode: 'fixed', transactions: [], wishes: [],
   expenses: [
@@ -29,3 +31,12 @@ export function load(): Ledger {
   } catch { return initialLedger }
 }
 export function save(data: Ledger) { localStorage.setItem(key, JSON.stringify(data)) }
+export function loadTest(): Ledger | null {
+  try {
+    const ledger = JSON.parse(localStorage.getItem(testKey) || '') as Ledger
+    return ledger?.transactions ? ledger : null
+  } catch { return null }
+}
+export function saveTest(data: Ledger) { localStorage.setItem(testKey, JSON.stringify(data)) }
+export function isTestMode() { return localStorage.getItem(testModeKey) === 'true' }
+export function setStoredTestMode(active: boolean) { localStorage.setItem(testModeKey, String(active)) }
