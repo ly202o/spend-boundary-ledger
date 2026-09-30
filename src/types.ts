@@ -13,5 +13,6 @@ export type Expense = {
   paidMonth?: string
   category: string
 }
+export type Income = { id: string; title: string; amount: number; date: string }
 export type DisplayPreferences = { groupThousands: boolean; font: 'system' | 'rounded' | 'serif' }
-export type Ledger = { monthlyBudget: number; mealBudget: number; mode: 'dynamic' | 'fixed'; transactions: Transaction[]; wishes: Wish[]; expenses: Expense[]; display?: DisplayPreferences; updatedAt?: string }
+export type Ledger = { monthlyBudget: number; mealBudget: number; mode: 'dynamic' | 'fixed'; billingStartDay?: number; categories?: string[]; transactions: Transaction[]; incomes?: Income[]; wishes: Wish[]; expenses: Expense[]; display?: DisplayPreferences; updatedAt?: string }

@@ -13,9 +13,10 @@ test('近七日包含今天共七天', () => {
   assert.equal(range.startKey, '2026-09-20')
 })
 
-test('月账期从16日开始', () => {
-  assert.equal(spendingPeriodRange('month', new Date(2026, 8, 26)).startKey, '2026-09-16')
-  assert.equal(spendingPeriodRange('month', new Date(2026, 8, 10)).startKey, '2026-08-16')
+test('月账期默认从17日开始，可设置起始日', () => {
+  assert.equal(spendingPeriodRange('month', new Date(2026, 8, 26)).startKey, '2026-09-17')
+  assert.equal(spendingPeriodRange('month', new Date(2026, 8, 10)).startKey, '2026-08-17')
+  assert.equal(spendingPeriodRange('month', new Date(2026, 8, 26), 10).startKey, '2026-09-10')
 })
 
 test('周期支出只统计范围内账目', () => {
@@ -34,8 +35,8 @@ test('周图固定生成周一到周日七根柱', () => {
   assert.equal(days[6].dateKey, '2026-09-27')
 })
 
-test('月热力格覆盖16日至下月15日', () => {
+test('月热力格覆盖17日至下月16日', () => {
   const days = spendingPeriodDays([], 'month', new Date(2026, 8, 26))
-  assert.equal(days[0].dateKey, '2026-09-16')
-  assert.equal(days.at(-1)?.dateKey, '2026-10-15')
+  assert.equal(days[0].dateKey, '2026-09-17')
+  assert.equal(days.at(-1)?.dateKey, '2026-10-16')
 })
