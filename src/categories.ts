@@ -22,3 +22,11 @@ export function categoryGroups(ledger: Ledger): CategoryGroup[] {
 export function groupForCategory(groups: CategoryGroup[], category: string) {
   return groups.find(group => group.name === category || group.children.includes(category))?.name || '日常'
 }
+
+/** Use the chosen transaction time, while respecting customized meal categories. */
+export function mealCategoryForTime(time: string, children: string[]): string {
+  const hour = Number(time.slice(0, 2))
+  const preferred = hour < 11 ? '早餐' : hour < 17 ? '午餐' : hour < 22 ? '晚餐' : '夜宵'
+  const choices = preferred === '夜宵' ? ['宵夜', '夜宵'] : [preferred]
+  return choices.find(name => children.includes(name)) || children[0] || '其他'
+}

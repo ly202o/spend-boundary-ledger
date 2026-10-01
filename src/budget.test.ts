@@ -54,3 +54,9 @@ test('其他预算可单独调低，但不能超出生活总预算余额',()=>{
  assert.equal(higher.available,1000)
  assert.equal(calc({...base,rentBudget:1800},date).available,700)
 })
+test('固定日额支持自定义，动态均摊不受自定义金额影响',()=>{
+ const fixed:Ledger={...base,mode:'fixed',fixedDailyAmount:42.5}
+ assert.equal(calc(fixed,date).mealDaily,42.5)
+ assert.equal(calc({...fixed,mode:'dynamic'},date).mealDaily,calc(base,date).mealDaily)
+ assert.equal(calc({...fixed,fixedDailyAmount:undefined},date).mealDaily,calc({...base,mode:'fixed'},date).mealDaily)
+})

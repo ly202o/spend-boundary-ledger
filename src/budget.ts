@@ -19,7 +19,8 @@ export function calc(l: Ledger, date = new Date(), selectedMonth = billingMonthF
   const priorMeal = sum(meals.filter(x=>x.date<today))
   const days = range.days
   const elapsed = Math.max(1, Math.min(days, Math.round((date.getTime()-range.start.getTime())/86400000)+1))
-  const mealDaily = l.mode==='fixed' ? cents(l.mealBudget)/days : Math.max(0,cents(l.mealBudget)-priorMeal)/(days-elapsed+1)
+  const fixedDaily = l.fixedDailyAmount != null && Number.isFinite(l.fixedDailyAmount) && l.fixedDailyAmount >= 0 ? cents(l.fixedDailyAmount) : cents(l.mealBudget)/days
+  const mealDaily = l.mode==='fixed' ? fixedDaily : Math.max(0,cents(l.mealBudget)-priorMeal)/(days-elapsed+1)
   const mealRemaining = Math.max(0,cents(l.mealBudget)-mealSpent)
   const income = sum((l.incomes||[]).filter(x=>x.date>=range.startKey&&x.date<=range.endKey))
   // Legacy fixed-payment records remain visible in the ledger, but the rent
