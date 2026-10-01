@@ -16,5 +16,6 @@ export type Expense = {
 export type Income = { id: string; title: string; amount: number; date: string; time?: string }
 export type CategoryGroup = { name: string; children: string[] }
 export type MealTimes = { breakfast: string; lunch: string; dinner: string; supper: string }
+export type ChartThresholds = { nearPercent: number; severePercent: number }
 export type DisplayPreferences = { groupThousands: boolean; font: 'system' | 'rounded' | 'serif' }
-export type Ledger = { monthlyBudget: number; mealBudget: number; rentBudget?: number; otherBudget?: number; budgetVersion?: number; mode: 'dynamic' | 'fixed'; fixedDailyAmount?: number; mealTimes?: MealTimes; billingStartDay?: number; categories?: string[]; categoryGroups?: CategoryGroup[]; transactions: Transaction[]; incomes?: Income[]; wishes: Wish[]; expenses: Expense[]; display?: DisplayPreferences; updatedAt?: string }
+export type Ledger = { monthlyBudget: number; mealBudget: number; rentBudget?: number; otherBudget?: number; budgetVersion?: number; mode: 'dynamic' | 'fixed'; fixedDailyAmount?: number; mealTimes?: MealTimes; spendingPeriod?: 'week' | 'seven' | 'month'; chartThresholds?: ChartThresholds; billingStartDay?: number; categories?: string[]; categoryGroups?: CategoryGroup[]; transactions: Transaction[]; incomes?: Income[]; wishes: Wish[]; expenses: Expense[]; display?: DisplayPreferences; updatedAt?: string }

@@ -2,7 +2,7 @@ import { createContext, useContext, useEffect, useRef, useMemo, useState } from 
 import { CalendarDays, Check, Download, Home, LayoutGrid, Pencil, Plus, ReceiptText, RotateCcw, Sparkles, Trash2, Upload, WalletCards, X } from 'lucide-react'
 import { isTestMode, load, loadTest, normalizeLedger, save, saveTest, setStoredTestMode } from './store'
 import { calc, isOtherTransaction } from './budget'
-import type { CategoryGroup, DisplayPreferences, Income, Ledger, MealTimes, Transaction, Wish } from './types'
+import type { CategoryGroup, ChartThresholds, DisplayPreferences, Income, Ledger, MealTimes, Transaction, Wish } from './types'
 import type { User } from '@supabase/supabase-js'
 import { supabase, syncConfigured } from './supabase'
 import { fetchCloudLedger, saveCloudLedger, stamp } from './sync'
@@ -10,6 +10,7 @@ import { spendingPeriodDays, spendingPeriodSummary, type SpendingPeriod } from '
 import { normalizeWorkbookRows, parseQianJiRows, transactionsToQianJiRows, type QianJiImportResult } from './qianji'
 import { billingMonthForDate, billingRange } from './cycle'
 import { categoryGroups, defaultMealTimes, groupForCategory, mealCategoryForTime, validMealTimes } from './categories'
+import { defaultChartThresholds, spendingTone, validChartThresholds } from './chart-tone'
 
 const defaultDisplay:DisplayPreferences={groupThousands:false,font:'system'}
 const DisplayContext=createContext(defaultDisplay)
@@ -110,7 +111,7 @@ export default function App() {
   return <DisplayContext.Provider value={display}><main className={`app font-${display.font}`}>
     <header><div className="brand"><WalletCards size={21}/><span>消费边界</span></div><div className="header-actions"><MonthPicker selectedMonth={selectedMonth} label={monthLabel} startDay={ledger.billingStartDay||17} onChange={setSelectedMonth}/></div></header>
     <section className="content">
-      {tab === 'home' && <HomePage stats={stats} ledger={ledger} referenceDate={referenceDate} selectedMonth={selectedMonth} onShowCalculation={()=>setShowCalculation(true)} />}
+      {tab === 'home' && <HomePage stats={stats} ledger={ledger} referenceDate={referenceDate} selectedMonth={selectedMonth} onPeriodChange={spendingPeriod=>update({...ledger,spendingPeriod})} onShowCalculation={()=>setShowCalculation(true)} />}
       {tab === 'records' && <Records items={monthTransactions} onDelete={deleteTransaction} onEdit={setEditingTransaction} />}
       {tab === 'more' && (moreView==='menu'?<MoreMenu onSelect={setMoreView}/>:<>
         <button type="button" className="more-back" onClick={()=>setMoreView('menu')}>‹ 更多</button>
@@ -190,9 +191,9 @@ function MealTimeSettings({times,onSave}:{times?:MealTimes;onSave:(times:MealTim
   const fields=([['breakfast','早餐'],['lunch','午餐'],['dinner','晚餐'],['supper','夜宵']] as const)
   return <div className="mode-card"><b>默认餐别时间</b><small>新记账按开始时间自动选餐别；改动不会影响已记的账。</small><div className="meal-time-grid">{fields.map(([key,label])=><label key={key}>{label}开始<input type="time" value={draft[key]} onChange={event=>setDraft({...draft,[key]:event.target.value})}/></label>)}</div>{!valid&&<small className="meal-time-error" role="alert">请按早餐、午餐、晚餐、夜宵的顺序设置不同的开始时间。</small>}<div className="meal-time-actions"><button type="button" disabled={!valid} onClick={()=>onSave(draft)}>保存时间</button><button type="button" onClick={()=>{setDraft({...defaultMealTimes});onSave({...defaultMealTimes})}}>恢复默认</button></div></div>
 }
-function HomePage({ stats, ledger, referenceDate, selectedMonth, onShowCalculation }: { stats: ReturnType<typeof calc>; ledger: Ledger; referenceDate:Date; selectedMonth:string; onShowCalculation:()=>void }) {
-  const [period,setPeriod] = useState<SpendingPeriod>('week')
-  return <div className="overview"><article className="hero" role="button" tabIndex={0} aria-label="查看本月真正可支配计算明细" onClick={onShowCalculation} onKeyDown={event=>{if(event.key==='Enter'||event.key===' '){event.preventDefault();onShowCalculation()}}}><span className="hero-label"><WalletCards size={18}/>本月真正可支配</span><strong><Money value={stats.available}/></strong><div className="hero-bottom"><span>其他支出<b><Money value={stats.otherSpent}/></b></span><span>三餐支出<b><Money value={stats.mealSpent}/></b></span><span>三餐剩余<b><Money value={stats.mealRemaining}/></b></span></div></article><SpendingPeriodCard period={period} setPeriod={setPeriod} transactions={ledger.transactions} dailyLimit={stats.mealDaily} referenceDate={referenceDate} selectedMonth={selectedMonth} billingStartDay={ledger.billingStartDay||17}/></div>
+function HomePage({ stats, ledger, referenceDate, selectedMonth, onPeriodChange, onShowCalculation }: { stats: ReturnType<typeof calc>; ledger: Ledger; referenceDate:Date; selectedMonth:string; onPeriodChange:(period:SpendingPeriod)=>void; onShowCalculation:()=>void }) {
+  const period=ledger.spendingPeriod||'week'
+  return <div className="overview"><article className="hero" role="button" tabIndex={0} aria-label="查看本月真正可支配计算明细" onClick={onShowCalculation} onKeyDown={event=>{if(event.key==='Enter'||event.key===' '){event.preventDefault();onShowCalculation()}}}><span className="hero-label"><WalletCards size={18}/>本月真正可支配</span><strong><Money value={stats.available}/></strong><div className="hero-bottom"><span>其他支出<b><Money value={stats.otherSpent}/></b></span><span>三餐支出<b><Money value={stats.mealSpent}/></b></span><span>三餐剩余<b><Money value={stats.mealRemaining}/></b></span></div></article><SpendingPeriodCard period={period} setPeriod={onPeriodChange} transactions={ledger.transactions} dailyLimit={stats.mealDaily} monthlyBudget={ledger.monthlyBudget} otherBudget={ledger.otherBudget??1000} thresholds={ledger.chartThresholds} referenceDate={referenceDate} selectedMonth={selectedMonth} billingStartDay={ledger.billingStartDay||17}/></div>
 }
 function Records({items,onDelete,onEdit}:{items:Transaction[];onDelete:(id:string)=>void;onEdit:(item:Transaction)=>void}) { return <Page title="全部账目"><div className="records-panel">{items.length ? items.map(x=><SwipeRecord key={x.id} item={x} onDelete={()=>onDelete(x.id)} onEdit={()=>onEdit(x)}/>):<div className="panel"><Empty text="点击下方加号，记录第一笔消费。"/></div>}</div></Page> }
 function SwipeRecord({item,onDelete,onEdit}:{item:Transaction;onDelete:()=>void;onEdit:()=>void}) {
@@ -203,7 +204,7 @@ function SwipeRecord({item,onDelete,onEdit}:{item:Transaction;onDelete:()=>void;
     </div>
   </SwipeActions>
 }
-function SpendingPeriodCard({period,setPeriod,transactions,dailyLimit,referenceDate,selectedMonth,billingStartDay}:{period:SpendingPeriod;setPeriod:(period:SpendingPeriod)=>void;transactions:Transaction[];dailyLimit:number;referenceDate:Date;selectedMonth:string;billingStartDay:number}) {
+function SpendingPeriodCard({period,setPeriod,transactions,dailyLimit,monthlyBudget,otherBudget,thresholds,referenceDate,selectedMonth,billingStartDay}:{period:SpendingPeriod;setPeriod:(period:SpendingPeriod)=>void;transactions:Transaction[];dailyLimit:number;monthlyBudget:number;otherBudget:number;thresholds?:ChartThresholds;referenceDate:Date;selectedMonth:string;billingStartDay:number}) {
   const [category,setCategory] = useState<'meal'|'other'|'all'>('meal')
   const [weekOffset,setWeekOffset] = useState(0)
   const labels:Record<SpendingPeriod,string>={week:'本周',seven:'近7日',month:'本月'}
@@ -212,7 +213,9 @@ function SpendingPeriodCard({period,setPeriod,transactions,dailyLimit,referenceD
   const summary=useMemo(()=>spendingPeriodSummary(filtered,period,periodDate,billingStartDay,selectedMonth),[filtered,period,periodDate,billingStartDay,selectedMonth])
   const days=useMemo(()=>spendingPeriodDays(filtered,period,periodDate,billingStartDay,selectedMonth),[filtered,period,periodDate,billingStartDay,selectedMonth])
   const maxAmount=Math.max(1,...days.map(day=>day.amount))
-  const tone=(amount:number)=>amount<=0?'zero':category==='other'?'other':category==='all'?'all':dailyLimit<=0||amount>dailyLimit?'over':amount>=dailyLimit*.8?'near':'within'
+  const cycleDays=billingRange(selectedMonth,billingStartDay).days
+  const colorDailyLimit=category==='meal'?dailyLimit:category==='other'?otherBudget/cycleDays:monthlyBudget/cycleDays
+  const tone=(amount:number)=>spendingTone(amount,colorDailyLimit,thresholds)
   const spentHeight=(amount:number)=>amount>0?Math.max(8,amount/maxAmount*68):0
   const weekdays=['一','二','三','四','五','六','日']
   const actions=<>{(['week','seven','month'] as const).map(id=><button key={id} className={`period-choice ${period===id?'selected':''}`} aria-label={`切换到${labels[id]}`} onClick={()=>{setPeriod(id);setWeekOffset(0)}}><span>{labels[id]}</span></button>)}</>
@@ -226,7 +229,7 @@ function SpendingPeriodCard({period,setPeriod,transactions,dailyLimit,referenceD
   return <SwipeActions className="period-swipe" actionCount={3} actions={actions} leftActions={weekActions} leftActionCount={3}>
     <article className="period-card">
       <div className="period-heading"><span className="eyebrow">{periodTitle}支出</span><CategorySelector value={category} onChange={setCategory}/></div>
-      <div className="period-meta">{category==='meal'?<div className="period-budget">{period==='week'&&<span>周额 <Money value={weekLimit}/>　剩余 <b><Money value={weekLimit-summary.total}/></b></span>}<span>日额 <Money value={dailyLimit}/>　剩余 <b><Money value={dailyLimit-todaySpent}/></b></span></div>:<span>{categoryLabel}支出不计入三餐预算</span>}</div>
+      <div className="period-meta">{category==='meal'?<div className="period-budget">{period==='week'&&<span>周额 <Money value={weekLimit}/>　剩余 <b><Money value={weekLimit-summary.total}/></b></span>}<span>日额 <Money value={dailyLimit}/>　剩余 <b><Money value={dailyLimit-todaySpent}/></b></span></div>:<span>颜色参考{category==='other'?'其他预算':'生活预算'}日额 <Money value={colorDailyLimit}/></span>}</div>
       <div className="period-total"><strong><Money value={summary.total}/></strong><span>日均 <b><Money value={summary.dailyAverage}/></b></span></div>
       {period==='month'?<div className="calendar-chart"><div className="calendar-weekdays">{weekdays.map(day=><span key={day}>{day}</span>)}</div><div className="calendar-grid" style={{'--start-column':String((days[0].date.getDay()+6)%7+1)} as React.CSSProperties}>{days.map((day,index)=><span key={day.dateKey} className={`${day.future?'future':''} ${day.amount?'spent':''} ${tone(day.amount)}`} style={{'--heat':String(Math.min(1,day.amount/maxAmount))} as React.CSSProperties} title={`${day.dateKey} ${yuan(day.amount)}`}><b>{day.date.getDate()}</b>{day.amount>0&&<i/>}{index===0&&<em>{billingStartDay}</em>}</span>)}</div></div>:<div className="bar-chart" aria-label={`${periodTitle}${categoryLabel}支出柱状图`}>{days.map((day,index)=>{const height=spentHeight(day.amount);return <div className={`bar-day ${day.future?'future':''} ${tone(day.amount)}`} key={day.dateKey}><div className="bar-track" title={`${day.dateKey}：支出 ${yuan(day.amount)}`}><i style={{height:`${height}px`}}/>{day.amount>0&&<div className="bar-value" style={{bottom:`${height+4}px`}}><Money value={day.amount} currency={false}/></div>}</div><span>周{weekdays[index]}<small>{day.date.getMonth()+1}/{day.date.getDate()}</small></span></div>})}</div>}
     </article>
@@ -262,7 +265,25 @@ function SettingsPage({ledger,update,testMode,onToggleTestData,configured,user,s
   const [confirmingReset,setConfirmingReset] = useState(false)
   const [testNotice,setTestNotice] = useState('')
   const display=ledger.display||defaultDisplay
-  return <Page title="设置"><div className="panel settings"><section className="display-card"><b>显示设置</b><label className="switch-row"><span>金额使用千位分隔符<small>{display.groupThousands?'显示为 1,000.00':'显示为 1000.00'}</small></span><input type="checkbox" checked={display.groupThousands} onChange={e=>update({...ledger,display:{...display,groupThousands:e.target.checked}})}/></label><label>界面字体<select value={display.font} onChange={e=>update({...ledger,display:{...display,font:e.target.value as DisplayPreferences['font']}})}><option value="system">系统默认</option><option value="rounded">圆润字体</option><option value="serif">宋体</option></select></label></section><section className="test-data-card"><div><b>使用测试数据</b><small>使用你提供的钱迹账单副本。测试中的修改会单独保存，不影响正式账本。</small>{testNotice&&<small className="test-error">{testNotice}</small>}</div><button type="button" className={`toggle ${testMode?'on':''}`} role="switch" aria-checked={testMode} aria-label="使用测试数据" onClick={()=>{setTestNotice('');void onToggleTestData(!testMode).catch(error=>setTestNotice(error instanceof Error?error.message:'测试数据切换失败'))}}><span/></button></section><SyncSettings configured={configured} user={user} syncState={syncState} onLogin={onLogin} onSignOut={onSignOut}/><ImportExportSettings ledger={ledger} update={update}/><section className="reset-card"><div><b>重置数据</b><small>清空当前账本并恢复默认预算与房租，可在确认后撤回。</small></div>{confirmingReset?<div className="reset-confirm"><span>确定要重置当前账本吗？</span><button type="button" onClick={()=>setConfirmingReset(false)}>取消</button><button type="button" className="danger" onClick={()=>{onReset();setConfirmingReset(false)}}>确认重置</button></div>:<button type="button" className="reset-button" onClick={()=>setConfirmingReset(true)}>一键重置</button>}{canUndoReset&&<button type="button" className="undo-reset" onClick={onUndoReset}><RotateCcw size={16}/>撤回刚才的重置</button>}</section><p>{testMode?'当前正在使用测试账本，修改只保存在测试副本。':'未登录时数据仅保存在当前设备；登录后会自动同步。'}</p></div></Page>
+  return <Page title="设置"><div className="panel settings">
+    <section className="display-card"><b>显示设置</b><label className="switch-row"><span>金额使用千位分隔符<small>{display.groupThousands?'显示为 1,000.00':'显示为 1000.00'}</small></span><input type="checkbox" checked={display.groupThousands} onChange={e=>update({...ledger,display:{...display,groupThousands:e.target.checked}})}/></label><label>界面字体<select value={display.font} onChange={e=>update({...ledger,display:{...display,font:e.target.value as DisplayPreferences['font']}})}><option value="system">系统默认</option><option value="rounded">圆润字体</option><option value="serif">宋体</option></select></label></section>
+    <ChartThresholdSettings thresholds={ledger.chartThresholds} onSave={chartThresholds=>update({...ledger,chartThresholds})}/>
+    <section className="test-data-card"><div><b>使用测试数据</b><small>使用你提供的钱迹账单副本。测试中的修改会单独保存，不影响正式账本。</small>{testNotice&&<small className="test-error">{testNotice}</small>}</div><button type="button" className={`toggle ${testMode?'on':''}`} role="switch" aria-checked={testMode} aria-label="使用测试数据" onClick={()=>{setTestNotice('');void onToggleTestData(!testMode).catch(error=>setTestNotice(error instanceof Error?error.message:'测试数据切换失败'))}}><span/></button></section>
+    <SyncSettings configured={configured} user={user} syncState={syncState} onLogin={onLogin} onSignOut={onSignOut}/>
+    <ImportExportSettings ledger={ledger} update={update}/>
+    <section className="reset-card"><div><b>重置数据</b><small>清空当前账本并恢复默认预算与房租，可在确认后撤回。</small></div>{confirmingReset?<div className="reset-confirm"><span>确定要重置当前账本吗？</span><button type="button" onClick={()=>setConfirmingReset(false)}>取消</button><button type="button" className="danger" onClick={()=>{onReset();setConfirmingReset(false)}}>确认重置</button></div>:<button type="button" className="reset-button" onClick={()=>setConfirmingReset(true)}>一键重置</button>}{canUndoReset&&<button type="button" className="undo-reset" onClick={onUndoReset}><RotateCcw size={16}/>撤回刚才的重置</button>}</section>
+    <p>{testMode?'当前正在使用测试账本，修改只保存在测试副本。':'未登录时数据仅保存在当前设备；登录后会自动同步。'}</p>
+  </div></Page>
+}
+function ChartThresholdSettings({thresholds,onSave}:{thresholds?:ChartThresholds;onSave:(value:ChartThresholds)=>void}) {
+  const saved=thresholds&&validChartThresholds(thresholds)?thresholds:defaultChartThresholds
+  const [near,setNear]=useState(String(saved.nearPercent))
+  const [severe,setSevere]=useState(String(saved.severePercent))
+  useEffect(()=>{setNear(String(saved.nearPercent));setSevere(String(saved.severePercent))},[saved.nearPercent,saved.severePercent])
+  const value={nearPercent:Number(near),severePercent:Number(severe)}
+  const valid=near.trim()!==''&&severe.trim()!==''&&validChartThresholds(value)
+  const changed=value.nearPercent!==saved.nearPercent||value.severePercent!==saved.severePercent
+  return <section className="display-card chart-threshold-settings"><b>支出颜色</b><small>按每天对应预算的使用比例着色；柱子和月历方块使用同一规则。</small><div className="chart-color-legend"><span className="within">未接近</span><span className="near">接近超支</span><span className="over">轻度超支</span><span className="severe">严重超支</span></div><div className="chart-threshold-fields"><label>接近超支从日额的百分之几开始<input type="number" min="1" max="100" step="1" value={near} onChange={event=>setNear(event.target.value)}/></label><label>严重超支从日额的百分之几开始<input type="number" min="100" max="500" step="1" value={severe} onChange={event=>setSevere(event.target.value)}/></label></div><small>超过 100% 后显示橙色；超过严重超支界线后显示红色。默认是 80% 和 130%。</small>{!valid&&<small className="meal-time-error" role="alert">接近界线请填 1–100%，严重界线请填 100–500%。</small>}<button type="button" disabled={!valid||!changed} onClick={()=>onSave(value)}>保存颜色界线</button></section>
 }
 function ImportExportSettings({ledger,update}:{ledger:Ledger;update:(ledger:Ledger)=>void}) {
   const inputRef = useRef<HTMLInputElement>(null)
