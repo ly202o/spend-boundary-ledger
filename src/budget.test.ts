@@ -1,27 +1,29 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { calc } from './budget.ts'
+import { calc, isOtherTransaction } from './budget.ts'
 import type { Ledger } from './types'
-const base: Ledger = {monthlyBudget:4000,mealBudget:1500,mode:'dynamic',transactions:[],wishes:[],expenses:[{id:'rent',title:'房租',amount:1500,active:true,paid:false,category:'居住'}]}
+const base: Ledger = {monthlyBudget:4000,mealBudget:1500,rentBudget:1500,otherBudget:1000,mode:'dynamic',transactions:[],wishes:[],expenses:[]}
 const date = new Date(2026,8,1,12)
-test('三餐预算已隔离，支付预留不会重复扣款',()=>{
+test('房租只由预算预留，旧固定支出不重复扣款',()=>{
  assert.equal(calc(base,date).available,1000)
- const paid: Ledger={...base,expenses:[{...base.expenses[0],paid:true}],transactions:[{id:'1',title:'房租',amount:1500,category:'居住',date:'2026-09-01',source:'fixed'}]}
+ const paid: Ledger={...base,expenses:[{id:'rent',title:'房租',amount:1500,active:true,paid:true,category:'居住'}],transactions:[{id:'1',title:'房租',amount:1500,category:'居住',date:'2026-09-01',source:'fixed'}]}
  assert.equal(calc(paid,date).available,1000)
 })
-test('固定支出在下月自动重新预留',()=>{
- const paid: Ledger = {...base, expenses:[{...base.expenses[0], paid:true, paidMonth:'2026-09'}], transactions:[{id:'1',title:'房租',amount:1500,category:'居住',date:'2026-09-01',source:'fixed'}]}
- assert.equal(calc(paid, new Date(2026,8,15,12)).fixedReserved, 0)
- assert.equal(calc(paid, new Date(2026,9,1,12)).fixedReserved, 1500)
+test('手动记录的房租也不会从其他预算重复扣除',()=>{
+ const rent={id:'rent',title:'房租',amount:1500,category:'房租',categoryGroup:'居住',date:'2026-09-17',source:'general' as const}
+ const result=calc({...base,transactions:[rent]},new Date(2026,8,17,12),'2026-10')
+ assert.equal(isOtherTransaction(rent),false)
+ assert.equal(result.otherSpent,0)
+ assert.equal(result.available,1000)
 })
 test('当天三餐只扣一次，账期外不混入',()=>{
  const l:Ledger={...base,transactions:[{id:'1',title:'午饭',amount:32,category:'三餐',date:'2026-09-17',source:'meal'},{id:'2',title:'旧消费',amount:999,category:'其他',date:'2026-08-31',source:'general'}]}
  assert.equal(calc(l,new Date(2026,8,17,12)).todayLeft,18)
  assert.equal(calc(l,new Date(2026,8,17,12)).available,1000)
 })
-test('高愿望按资金来源占用，超预算保留负数',()=>{
+test('未购买的愿望不提前占用其他预算',()=>{
  const l:Ledger={...base,wishes:[{id:'w',title:'电脑',amount:2000,intensity:9,source:'budget'}]}
- assert.equal(calc(l,date).available,-1000)
+ assert.equal(calc(l,date).available,1000)
  l.wishes[0].source='freedom'
  assert.equal(calc(l,date).available,1000)
 })
@@ -50,4 +52,5 @@ test('其他预算可单独调低，但不能超出生活总预算余额',()=>{
  const higher=calc({...base,otherBudget:1200},date)
  assert.equal(lower.available,800)
  assert.equal(higher.available,1000)
+ assert.equal(calc({...base,rentBudget:1800},date).available,700)
 })

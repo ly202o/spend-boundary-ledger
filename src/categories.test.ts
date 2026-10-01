@@ -6,11 +6,12 @@ import type { Ledger } from './types'
 
 const ledger: Ledger = { monthlyBudget:4000, mealBudget:1500, mode:'fixed', transactions:[], incomes:[], wishes:[], expenses:[] }
 
-test('旧账本只迁移一次默认房租，不覆盖已设置的房租', () => {
+test('旧账本房租迁移为独立预算，不再新增固定支出', () => {
   const migrated = normalizeLedger(ledger)
-  assert.equal(migrated.expenses.find(item=>item.id==='rent')?.amount,1500)
-  assert.equal(normalizeLedger(migrated).expenses.length,1)
-  assert.equal(normalizeLedger({...ledger,expenses:[{id:'custom',title:'房租',amount:1800,active:true,paid:false,category:'居住'}]}).expenses.length,1)
+  assert.equal(migrated.rentBudget,1500)
+  assert.equal(migrated.expenses.length,0)
+  assert.equal(normalizeLedger(migrated).rentBudget,1500)
+  assert.equal(normalizeLedger({...ledger,expenses:[{id:'custom',title:'房租',amount:1800,active:true,paid:false,category:'居住'}]}).rentBudget,1800)
 })
 
 test('导入的自定义大类和小类在记账选择中可见', () => {

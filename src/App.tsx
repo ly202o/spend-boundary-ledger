@@ -1,8 +1,8 @@
 import { createContext, useContext, useEffect, useRef, useMemo, useState } from 'react'
-import { CalendarDays, Check, CircleDollarSign, Download, Home, LayoutGrid, Pause, Pencil, Play, Plus, ReceiptText, RotateCcw, Settings, Sparkles, Trash2, Upload, WalletCards, X } from 'lucide-react'
+import { CalendarDays, Check, Download, Home, LayoutGrid, Pencil, Plus, ReceiptText, RotateCcw, Sparkles, Trash2, Upload, WalletCards, X } from 'lucide-react'
 import { isTestMode, load, loadTest, normalizeLedger, save, saveTest, setStoredTestMode } from './store'
-import { calc } from './budget'
-import type { CategoryGroup, DisplayPreferences, Expense, Income, Ledger, Transaction, Wish } from './types'
+import { calc, isOtherTransaction } from './budget'
+import type { CategoryGroup, DisplayPreferences, Income, Ledger, Transaction, Wish } from './types'
 import type { User } from '@supabase/supabase-js'
 import { supabase, syncConfigured } from './supabase'
 import { fetchCloudLedger, saveCloudLedger, stamp } from './sync'
@@ -34,13 +34,12 @@ export default function App() {
   const [testMode,setTestMode] = useState(()=>isTestMode()&&!!loadTest())
   const [ledger, setLedger] = useState<Ledger>(()=>isTestMode()?loadTest()||load():load())
   const [selectedMonth,setSelectedMonth] = useState(()=>billingMonthForDate(new Date(),ledger.billingStartDay))
-  const [tab, setTab] = useState<'home'|'records'|'expenses'|'more'>('home')
+  const [tab, setTab] = useState<'home'|'records'|'more'>('home')
   const [moreView,setMoreView] = useState<MoreView>('menu')
-  const [modal, setModal] = useState<'transaction'|'wish'|'expense'|'income'|null>(null)
+  const [modal, setModal] = useState<'transaction'|'wish'|'income'|null>(null)
   const [showCalculation,setShowCalculation] = useState(false)
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null)
   const [editingIncome,setEditingIncome] = useState<Income|null>(null)
-  const [editingExpense,setEditingExpense] = useState<Expense|null>(null)
   const [resetBackup, setResetBackup] = useState<Ledger | null>(null)
   const [user, setUser] = useState<User | null>(null)
   const [syncState, setSyncState] = useState<'offline'|'syncing'|'synced'|'error'>('offline')
@@ -83,29 +82,10 @@ export default function App() {
   const referenceDate=useMemo(()=>monthDate(selectedMonth,ledger.billingStartDay),[selectedMonth,ledger.billingStartDay])
   const selectedDate=dateKey(referenceDate)
   const stats = useMemo(() => calc(ledger,referenceDate,selectedMonth), [ledger,referenceDate,selectedMonth])
-  const paidExpense = (id: string) => {
-    const exp = ledger.expenses.find(x => x.id === id)!
-    update({ ...ledger, expenses: ledger.expenses.map(x => x.id === id ? { ...x, paid: true, paidMonth: selectedMonth } : x), transactions: [{ id: uid(), title: exp.title, amount: exp.amount, category: exp.category, categoryGroup: exp.category, date: selectedDate, time: currentTime(), source: 'fixed', fixedExpenseId: exp.id }, ...ledger.transactions] })
-  }
-  const undoPaidExpense = (id: string) => {
-    const exp = ledger.expenses.find(x => x.id === id)
-    if (!exp) return
-    let removedLegacyMatch = false
-    update({
-      ...ledger,
-      expenses: ledger.expenses.map(x => x.id === id ? { ...x, paid: false, paidMonth: undefined } : x),
-      transactions: ledger.transactions.filter(transaction => {
-        if (transaction.fixedExpenseId === id && transaction.date.startsWith(selectedMonth)) return false
-        const isLegacyMatch = !transaction.fixedExpenseId && !removedLegacyMatch && transaction.source === 'fixed' && transaction.title === exp.title && transaction.amount === exp.amount && transaction.date.startsWith(selectedMonth)
-        if (isLegacyMatch) removedLegacyMatch = true
-        return !isLegacyMatch
-      })
-    })
-  }
   const deleteTransaction = (id: string) => update({ ...ledger, transactions: ledger.transactions.filter(x => x.id !== id) })
   const resetData = () => {
     setResetBackup(ledger)
-    update({ monthlyBudget: 4000, mealBudget: 1500, otherBudget:1000, budgetVersion:2, mode: 'fixed', billingStartDay:17, transactions: [], incomes:[], wishes: [], expenses: [{id:'rent',title:'房租',amount:1500,active:true,paid:false,category:'居住'}] })
+    update({ monthlyBudget: 4000, mealBudget: 1500, rentBudget:1500, otherBudget:1000, budgetVersion:3, mode: 'fixed', billingStartDay:17, transactions: [], incomes:[], wishes: [], expenses: [] })
   }
   const undoReset = () => {
     if (!resetBackup) return
@@ -128,11 +108,10 @@ export default function App() {
   const accountRange=billingRange(selectedMonth,ledger.billingStartDay)
   const monthTransactions=ledger.transactions.filter(item=>item.date>=accountRange.startKey&&item.date<=accountRange.endKey)
   return <DisplayContext.Provider value={display}><main className={`app font-${display.font}`}>
-    <header><div className="brand"><button type="button" className="brand-settings" aria-label="设置" onClick={()=>{setTab('more');setMoreView('settings')}}><WalletCards size={21}/><Settings size={11} className="brand-gear"/></button><span>消费边界</span></div><div className="header-actions"><MonthPicker selectedMonth={selectedMonth} label={monthLabel} startDay={ledger.billingStartDay||17} onChange={setSelectedMonth}/></div></header>
+    <header><div className="brand"><WalletCards size={21}/><span>消费边界</span></div><div className="header-actions"><MonthPicker selectedMonth={selectedMonth} label={monthLabel} startDay={ledger.billingStartDay||17} onChange={setSelectedMonth}/></div></header>
     <section className="content">
       {tab === 'home' && <HomePage stats={stats} ledger={ledger} referenceDate={referenceDate} selectedMonth={selectedMonth} onShowCalculation={()=>setShowCalculation(true)} />}
       {tab === 'records' && <Records items={monthTransactions} onDelete={deleteTransaction} onEdit={setEditingTransaction} />}
-      {tab === 'expenses' && <Expenses items={ledger.expenses} activeMonth={selectedMonth} onAdd={() => setModal('expense')} onEdit={setEditingExpense} onPay={paidExpense} onUndoPay={undoPaidExpense} update={update} ledger={ledger} />}
       {tab === 'more' && (moreView==='menu'?<MoreMenu onSelect={setMoreView}/>:<>
         <button type="button" className="more-back" onClick={()=>setMoreView('menu')}>‹ 更多</button>
         {moreView==='wishes'&&<Wishes ledger={ledger} stats={stats} onAdd={() => setModal('wish')} update={update} onBuy={buyWish}/>}
@@ -145,27 +124,24 @@ export default function App() {
     </section>
     <nav aria-label="主导航">
       <div className="nav-tabs">
-        {([['home', Home, '首页'], ['records', ReceiptText, '账目'], ['expenses', CircleDollarSign, '固定支出'], ['more', LayoutGrid, '更多']] as const).map(([id, Icon, name]) => <button key={id} className={tab === id ? 'active' : ''} onClick={() => {setTab(id);if(id==='more')setMoreView('menu')}}><Icon size={20}/><span>{name}</span></button>)}
+        {([['home', Home, '首页'], ['records', ReceiptText, '账目'], ['more', LayoutGrid, '更多']] as const).map(([id, Icon, name]) => <button key={id} className={tab === id ? 'active' : ''} onClick={() => {setTab(id);if(id==='more')setMoreView('menu')}}><Icon size={20}/><span>{name}</span></button>)}
       </div>
       <button className="nav-add" aria-label="记一笔" onClick={() => setModal('transaction')}><Plus size={33}/></button>
     </nav>
     {modal === 'transaction' && <TransactionForm groups={categoryGroups(ledger)} close={() => setModal(null)} save={(x) => update({ ...ledger, transactions: [x, ...ledger.transactions] })}/>}
     {editingTransaction && <TransactionForm groups={categoryGroups(ledger)} initial={editingTransaction} close={() => setEditingTransaction(null)} save={(x) => { update({ ...ledger, transactions: ledger.transactions.map(item => item.id === x.id ? x : item) }); setEditingTransaction(null) }}/>}
     {modal === 'wish' && <WishForm close={() => setModal(null)} add={(x) => update({ ...ledger, wishes: [x, ...ledger.wishes] })}/>}
-    {modal === 'expense' && <ExpenseForm close={() => setModal(null)} add={(x) => update({ ...ledger, expenses: [...ledger.expenses, x] })}/>}
-    {editingExpense&&<ExpenseForm initial={editingExpense} close={()=>setEditingExpense(null)} add={expense=>{update({...ledger,expenses:ledger.expenses.map(item=>item.id===expense.id?expense:item)});setEditingExpense(null)}}/>}
     {modal === 'income' && <IncomeForm close={() => setModal(null)} save={(x) => update({...ledger,incomes:[...(ledger.incomes||[]),x]})}/>}
     {editingIncome&&<IncomeForm initial={editingIncome} close={()=>setEditingIncome(null)} save={income=>{update({...ledger,incomes:(ledger.incomes||[]).map(item=>item.id===income.id?income:item)});setEditingIncome(null)}}/>}
     {showCalculation && <Modal title="本月真正可支配 · 计算明细" close={()=>setShowCalculation(false)}><div className="calculation-lines">
       <div><span>月生活预算</span><b><Money value={ledger.monthlyBudget}/></b></div>
       <div><span>预留三餐月预算</span><b>− <Money value={ledger.mealBudget}/></b></div>
-      <div><span>固定支出（已付及待付）</span><b>− <Money value={stats.fixedCommitted}/></b></div>
+      <div><span>房租预算</span><b>− <Money value={ledger.rentBudget??1500}/></b></div>
       <div><span>其他预算上限</span><b><Money value={ledger.otherBudget??1000}/></b></div>
       <div><span>可用弹性额度（取较小值）</span><b><Money value={stats.flexibleBase}/></b></div>
-      <div><span>其他弹性支出</span><b>− <Money value={stats.flexibleSpent}/></b></div>
-      <div><span>愿望预留</span><b>− <Money value={stats.wishReserved}/></b></div>
+      <div><span>其他支出</span><b>− <Money value={stats.otherSpent}/></b></div>
       <div className="calculation-total"><span>真正可支配</span><b><Money value={stats.available}/></b></div>
-    </div><p className="calculation-help">工资单独记录，不扩大固定生活预算；三餐支出只使用三餐预算。若预算分配超出总额，弹性额度会按总额自动收紧。</p></Modal>}
+    </div><p className="calculation-help">先从生活预算预留三餐和房租，再以其他预算为上限，扣除本账期其他支出。工资和未购买的愿望不参与这一数字；旧固定支出记录不重复扣减。</p></Modal>}
   </main></DisplayContext.Provider>
 }
 
@@ -185,11 +161,8 @@ function IncomePage({ledger,selectedMonth,stats,onAdd,onEdit,update}:{ledger:Led
   return <Page title="工资收入" action="添加收入" onAction={onAdd}><section className="panel income-panel"><strong><Money value={stats.income}/></strong><small>本账期收入单独记录，不改变固定的月生活预算。</small>{incomes.map(item=><div className="line" key={item.id}><div><b>{item.title}</b><small>{displayDateTime(item.date,item.time)}</small></div><div className="income-actions"><b><Money value={item.amount}/></b><button type="button" aria-label={`编辑${item.title}`} onClick={()=>onEdit(item)}><Pencil size={16}/></button><button type="button" aria-label={`删除${item.title}`} onClick={()=>update({...ledger,incomes:(ledger.incomes||[]).filter(income=>income.id!==item.id)})}><Trash2 size={16}/></button></div></div>)}</section></Page>
 }
 function BudgetSettings({ledger,update}:{ledger:Ledger;update:(ledger:Ledger)=>void}) {
-  const rent=ledger.expenses.find(item=>item.id==='rent'||item.title==='房租')
-  const rentAmount=rent?.amount||0
-  const total=ledger.mealBudget+rentAmount+(ledger.otherBudget??1000)
-  const changeRent=(amount:number)=>update({...ledger,expenses:rent?ledger.expenses.map(item=>item.id===rent.id?{...item,amount}:item):[...ledger.expenses,{id:'rent',title:'房租',amount,active:true,paid:false,category:'居住'}]})
-  return <Page title="预算"><section className="panel settings budget-settings"><label>月生活预算<input type="number" min="0" step="0.01" value={ledger.monthlyBudget} onChange={event=>update({...ledger,monthlyBudget:+event.target.value})}/></label><label>三餐月预算<input type="number" min="0" step="0.01" value={ledger.mealBudget} onChange={event=>update({...ledger,mealBudget:+event.target.value})}/></label><label>房租预算<input type="number" min="0" step="0.01" value={rentAmount} onChange={event=>changeRent(+event.target.value)}/><small>与固定支出中的房租保持一致。</small></label><label>其他预算<input type="number" min="0" step="0.01" value={ledger.otherBudget??1000} onChange={event=>update({...ledger,otherBudget:+event.target.value})}/></label><p className={total===ledger.monthlyBudget?'budget-balance':'budget-balance warning'}>分配合计 <Money value={total}/> · {total===ledger.monthlyBudget?'与月生活预算一致':`与月生活预算相差 ${yuan(ledger.monthlyBudget-total)}`}</p></section></Page>
+  const total=ledger.mealBudget+(ledger.rentBudget??1500)+(ledger.otherBudget??1000)
+  return <Page title="预算"><section className="panel settings budget-settings"><label>月生活预算<input type="number" min="0" step="0.01" value={ledger.monthlyBudget} onChange={event=>update({...ledger,monthlyBudget:+event.target.value})}/></label><label>三餐月预算<input type="number" min="0" step="0.01" value={ledger.mealBudget} onChange={event=>update({...ledger,mealBudget:+event.target.value})}/></label><label>房租预算<input type="number" min="0" step="0.01" value={ledger.rentBudget??1500} onChange={event=>update({...ledger,rentBudget:+event.target.value})}/></label><label>其他预算<input type="number" min="0" step="0.01" value={ledger.otherBudget??1000} onChange={event=>update({...ledger,otherBudget:+event.target.value})}/></label><p className={total===ledger.monthlyBudget?'budget-balance':'budget-balance warning'}>分配合计 <Money value={total}/> · {total===ledger.monthlyBudget?'与月生活预算一致':`与月生活预算相差 ${yuan(ledger.monthlyBudget-total)}`}</p></section></Page>
 }
 function BookModeSettings({ledger,update}:{ledger:Ledger;update:(ledger:Ledger)=>void}) {
   const start=ledger.billingStartDay||17
@@ -197,7 +170,7 @@ function BookModeSettings({ledger,update}:{ledger:Ledger;update:(ledger:Ledger)=
 }
 function HomePage({ stats, ledger, referenceDate, selectedMonth, onShowCalculation }: { stats: ReturnType<typeof calc>; ledger: Ledger; referenceDate:Date; selectedMonth:string; onShowCalculation:()=>void }) {
   const [period,setPeriod] = useState<SpendingPeriod>('week')
-  return <div className="overview"><article className="hero" role="button" tabIndex={0} aria-label="查看本月真正可支配计算明细" onClick={onShowCalculation} onKeyDown={event=>{if(event.key==='Enter'||event.key===' '){event.preventDefault();onShowCalculation()}}}><span className="hero-label"><WalletCards size={18}/>本月真正可支配</span><strong><Money value={stats.available}/></strong><div className="hero-bottom"><span>三餐外已支出<b><Money value={stats.otherSpent}/></b></span><span>三餐支出<b><Money value={stats.mealSpent}/></b></span><span>三餐剩余<b><Money value={stats.mealRemaining}/></b></span></div></article><SpendingPeriodCard period={period} setPeriod={setPeriod} transactions={ledger.transactions} dailyLimit={stats.mealDaily} referenceDate={referenceDate} selectedMonth={selectedMonth} billingStartDay={ledger.billingStartDay||17}/></div>
+  return <div className="overview"><article className="hero" role="button" tabIndex={0} aria-label="查看本月真正可支配计算明细" onClick={onShowCalculation} onKeyDown={event=>{if(event.key==='Enter'||event.key===' '){event.preventDefault();onShowCalculation()}}}><span className="hero-label"><WalletCards size={18}/>本月真正可支配</span><strong><Money value={stats.available}/></strong><div className="hero-bottom"><span>其他支出<b><Money value={stats.otherSpent}/></b></span><span>三餐支出<b><Money value={stats.mealSpent}/></b></span><span>三餐剩余<b><Money value={stats.mealRemaining}/></b></span></div></article><SpendingPeriodCard period={period} setPeriod={setPeriod} transactions={ledger.transactions} dailyLimit={stats.mealDaily} referenceDate={referenceDate} selectedMonth={selectedMonth} billingStartDay={ledger.billingStartDay||17}/></div>
 }
 function Records({items,onDelete,onEdit}:{items:Transaction[];onDelete:(id:string)=>void;onEdit:(item:Transaction)=>void}) { return <Page title="全部账目"><div className="records-panel">{items.length ? items.map(x=><SwipeRecord key={x.id} item={x} onDelete={()=>onDelete(x.id)} onEdit={()=>onEdit(x)}/>):<div className="panel"><Empty text="点击下方加号，记录第一笔消费。"/></div>}</div></Page> }
 function SwipeRecord({item,onDelete,onEdit}:{item:Transaction;onDelete:()=>void;onEdit:()=>void}) {
@@ -212,7 +185,7 @@ function SpendingPeriodCard({period,setPeriod,transactions,dailyLimit,referenceD
   const [category,setCategory] = useState<'meal'|'other'|'all'>('meal')
   const [weekOffset,setWeekOffset] = useState(0)
   const labels:Record<SpendingPeriod,string>={week:'本周',seven:'近7日',month:'本月'}
-  const filtered=useMemo(()=>category==='all'?transactions:transactions.filter(item=>category==='meal'?item.source==='meal':item.source!=='meal'),[transactions,category])
+  const filtered=useMemo(()=>category==='all'?transactions:transactions.filter(item=>category==='meal'?item.source==='meal':isOtherTransaction(item)),[transactions,category])
   const periodDate=useMemo(()=>{if(period!=='week')return referenceDate;const target=new Date(referenceDate.getFullYear(),referenceDate.getMonth(),referenceDate.getDate()-weekOffset*7,12);return weekOffset>0?new Date(target.getFullYear(),target.getMonth(),target.getDate()+((7-target.getDay())%7),12):target},[period,referenceDate,weekOffset])
   const summary=useMemo(()=>spendingPeriodSummary(filtered,period,periodDate,billingStartDay,selectedMonth),[filtered,period,periodDate,billingStartDay,selectedMonth])
   const days=useMemo(()=>spendingPeriodDays(filtered,period,periodDate,billingStartDay,selectedMonth),[filtered,period,periodDate,billingStartDay,selectedMonth])
@@ -243,16 +216,7 @@ function CategorySelector({value,onChange}:{value:'meal'|'other'|'all';onChange:
   const labels={meal:'三餐支出',other:'其他支出',all:'全部支出'}
   return <div className="category-selector"><button type="button" className="category-trigger" aria-label={`当前${labels[value]}，长按切换`} onPointerDown={()=>{timer.current=setTimeout(()=>setOpen(true),450)}} onPointerUp={()=>{if(timer.current)clearTimeout(timer.current)}} onPointerCancel={()=>{if(timer.current)clearTimeout(timer.current)}} onContextMenu={event=>{event.preventDefault();setOpen(true)}} onKeyDown={event=>{if(event.key==='Enter'||event.key===' ')setOpen(true)}}>{labels[value]}</button>{open&&<div className="category-options" role="group" aria-label="选择支出分类">{(['meal','other','all'] as const).map(id=><button key={id} type="button" className={value===id?'active':''} onClick={()=>{onChange(id);setOpen(false)}}>{labels[id]}</button>)}</div>}</div>
 }
-function Wishes({ledger,stats,onAdd,update,onBuy}:{ledger:Ledger;stats:ReturnType<typeof calc>;onAdd:()=>void;update:(l:Ledger)=>void;onBuy:(id:string)=>void}) { return <Page title="愿望单" action="添加愿望" onAction={onAdd}><p className="description">强度为 8–10 且使用本月预算的愿望，会自动预留金额。购买后预留转换为实际支出，只扣一次。</p><div className="cards">{ledger.wishes.length ? ledger.wishes.map(x => <SwipeActions key={x.id} className="wish-swipe" actionCount={2} actions={<><button className="swipe-pay" onClick={()=>onBuy(x.id)}><Check size={19}/><span>已购买</span></button><button className="swipe-delete" onClick={()=>update({...ledger,wishes:ledger.wishes.filter(w=>w.id!==x.id)})}><Trash2 size={19}/><span>删除</span></button></>}><article className="wish"><div><span className="pill">{x.intensity}/10 想要</span><h3>{x.title}</h3><small>{x.source === 'budget' ? '本月可支配额度' : x.source === 'freedom' ? '自由基金' : '暂未决定'}</small></div><b><Money value={x.amount}/></b></article></SwipeActions>) : <Empty text="把想买的东西放进来，再决定它值不值得占用预算。"/>}</div><div className="notice">当前愿望预留：<b><Money value={stats.wishReserved}/></b></div></Page> }
-function Expenses({items,activeMonth,onAdd,onEdit,onPay,onUndoPay,update,ledger}:{items:Expense[];activeMonth:string;onAdd:()=>void;onEdit:(item:Expense)=>void;onPay:(id:string)=>void;onUndoPay:(id:string)=>void;update:(l:Ledger)=>void;ledger:Ledger}) { return <Page title="固定支出" action="添加项目" onAction={onAdd}><p className="description">左滑可支付、编辑、停用或删除；已支付的项目可以撤回。</p><div className="cards">{items.map(x => {
-  const paidThisMonth = x.paidMonth ? x.paidMonth === activeMonth : x.paid
-  const toggleActive = () => update({...ledger,expenses:ledger.expenses.map(e=>e.id===x.id?{...e,active:!e.active}:e)})
-  const swipeActions = <>{x.active && (paidThisMonth ? <button className="swipe-undo" aria-label={`撤回 ${x.title} 的支付`} onClick={()=>onUndoPay(x.id)}><RotateCcw size={19}/><span>撤回</span></button> : <button className="swipe-pay" aria-label={`标记 ${x.title} 已支付`} onClick={()=>onPay(x.id)}><Check size={20}/><span>支付</span></button>)}<button className="swipe-edit" aria-label={`编辑 ${x.title}`} onClick={()=>onEdit(x)}><Pencil size={18}/><span>编辑</span></button><button className="swipe-toggle" aria-label={`${x.active?'停用':'启用'} ${x.title}`} onClick={toggleActive}>{x.active?<Pause size={19}/>:<Play size={19}/>}<span>{x.active?'停用':'启用'}</span></button><button className="swipe-delete" aria-label={`删除 ${x.title}`} onClick={()=>update({...ledger,expenses:ledger.expenses.filter(e=>e.id!==x.id)})}><Trash2 size={19}/><span>删除</span></button></>
-  const actionCount = x.active ? 4 : 3
-  const status = paidThisMonth ? '本月已支付' : x.active ? '待支付' : '已停用'
-  const statusClass = paidThisMonth ? 'paid' : x.active ? 'pending' : 'disabled'
-  return <SwipeActions key={x.id} className="expense-swipe" actionCount={actionCount} actions={swipeActions}><article className="expense"><div><h3>{x.title}</h3><div className="expense-meta"><small>{x.category}</small><span className={`status-badge ${statusClass}`}>{status}</span></div></div><b><Money value={x.amount}/></b></article></SwipeActions>
-})}</div></Page> }
+function Wishes({ledger,stats,onAdd,update,onBuy}:{ledger:Ledger;stats:ReturnType<typeof calc>;onAdd:()=>void;update:(l:Ledger)=>void;onBuy:(id:string)=>void}) { return <Page title="愿望单" action="添加愿望" onAction={onAdd}><p className="description">愿望先作计划，不扣减本月可支配额度；购买后才计入其他支出。自由基金购买不计入生活预算。</p><div className="cards">{ledger.wishes.length ? ledger.wishes.map(x => <SwipeActions key={x.id} className="wish-swipe" actionCount={2} actions={<><button className="swipe-pay" onClick={()=>onBuy(x.id)}><Check size={19}/><span>已购买</span></button><button className="swipe-delete" onClick={()=>update({...ledger,wishes:ledger.wishes.filter(w=>w.id!==x.id)})}><Trash2 size={19}/><span>删除</span></button></>}><article className="wish"><div><span className="pill">{x.intensity}/10 想要</span><h3>{x.title}</h3><small>{x.source === 'budget' ? '本月可支配额度' : x.source === 'freedom' ? '自由基金' : '暂未决定'}</small></div><b><Money value={x.amount}/></b></article></SwipeActions>) : <Empty text="把想买的东西放进来，再决定它值不值得占用预算。"/>}</div><div className="notice">计划中的愿望：<b><Money value={stats.wishReserved}/></b></div></Page> }
 function SwipeActions({children,actions,actionCount=1,className='',leftActions,leftActionCount=0}:{children:React.ReactNode;actions:React.ReactNode;actionCount?:number;className?:string;leftActions?:React.ReactNode;leftActionCount?:number}) {
   const [open,setOpen] = useState<'left'|'right'|null>(null)
   const startX = useRef<number | null>(null)
@@ -401,4 +365,3 @@ function TransactionForm({close,save,initial,groups}:{close:()=>void;save:(x:Tra
 }
 function IncomeForm({close,save,initial}:{close:()=>void;save:(income:Income)=>void;initial?:Income}) {const [title,setTitle]=useState(initial?.title||'工资');const [amount,setAmount]=useState(initial?String(initial.amount):'');const [date,setDate]=useState(initial?.date||dateKey(new Date()));const [time,setTime]=useState(initial?.time||currentTime());return <Modal title={initial?'编辑工资收入':'记录工资收入'} close={close}><label>收入名称<input value={title} onChange={event=>setTitle(event.target.value)}/></label><label>金额<input type="number" min="0" step="0.01" value={amount} onChange={event=>setAmount(event.target.value)}/></label><div className="date-time-fields"><label>到账日期<input type="date" value={date} onChange={event=>setDate(event.target.value)}/></label><label>到账时间<input type="time" value={time} onChange={event=>setTime(event.target.value)}/></label></div><button type="button" className="submit" disabled={!title.trim()||!validAmount(amount)||!date||!time} onClick={()=>{save({id:initial?.id||uid(),title:title.trim(),amount:+amount,date,time});close()}}>保存收入</button></Modal>}
 function WishForm({close,add}:{close:()=>void;add:(x:Wish)=>void}) { const [title,setTitle]=useState('');const [amount,setAmount]=useState('');const [intensity,setIntensity]=useState(5);const [source,setSource]=useState<Wish['source']>('budget');return <Modal title="添加愿望" close={close}><label>想买什么<input autoFocus value={title} onChange={e=>setTitle(e.target.value)} /></label><label>预计价格<input type="number" value={amount} onChange={e=>setAmount(e.target.value)} /></label><label>愿望强度：<b>{intensity}/10</b><input type="range" min="1" max="10" value={intensity} onChange={e=>setIntensity(+e.target.value)}/></label><label>资金来源<select value={source} onChange={e=>setSource(e.target.value as Wish['source'])}><option value="budget">本月可支配额度</option><option value="freedom">自由基金</option><option value="undecided">暂未决定</option></select></label><button type="button" className="submit" disabled={!title.trim() || !validAmount(amount)} onClick={()=>{if(title.trim()&&validAmount(amount)){add({id:uid(),title,amount:+amount,intensity,source});close()}}}>加入愿望单</button></Modal>}
-function ExpenseForm({close,add,initial}:{close:()=>void;add:(x:Expense)=>void;initial?:Expense}) {const [title,setTitle]=useState(initial?.title||'');const [amount,setAmount]=useState(initial?String(initial.amount):'');const [category,setCategory]=useState(initial?.category||'居住');return <Modal title={initial?'编辑固定支出':'添加固定支出'} close={close}><label>名称<input autoFocus value={title} onChange={e=>setTitle(e.target.value)} placeholder="例如：房租"/></label><label>金额<input type="number" min="0" step="0.01" value={amount} onChange={e=>setAmount(e.target.value)}/></label><label>分类<input value={category} onChange={event=>setCategory(event.target.value)}/></label><button type="button" className="submit" disabled={!title.trim() || !validAmount(amount)} onClick={()=>{if(title.trim()&&validAmount(amount)){add({id:initial?.id||uid(),title:title.trim(),amount:+amount,active:initial?.active??true,paid:initial?.paid??false,paidMonth:initial?.paidMonth,category:category.trim()||'固定费用'});close()}}}>{initial?'保存修改':'添加并预留'}</button></Modal>}
