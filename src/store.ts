@@ -5,17 +5,20 @@ const testKey = 'spend-boundary-ledger-test-v1'
 const testModeKey = 'spend-boundary-ledger-test-mode'
 const testDataStart = '2026-09-16'
 export const initialLedger: Ledger = {
-  monthlyBudget: 4000, mealBudget: 1500, mode: 'fixed', transactions: [], wishes: [],
+  monthlyBudget: 4000, mealBudget: 1500, otherBudget: 1000, budgetVersion: 2, mode: 'fixed', billingStartDay: 17, transactions: [], incomes: [], wishes: [],
   expenses: [
-    { id: 'rent', title: '房租', amount: 1500, active: true, paid: false, category: '居住' },
-    { id: 'bike', title: '电动车', amount: 200, active: true, paid: false, category: '交通' },
-    { id: 'icloud', title: 'iCloud', amount: 6, active: true, paid: false, category: '订阅' },
-    { id: 'phone', title: '电话费', amount: 30, active: true, paid: false, category: '通信' }
+    { id: 'rent', title: '房租', amount: 1500, active: true, paid: false, category: '居住' }
   ]
 }
 const currentMonth = () => {
   const now = new Date()
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+}
+export function normalizeLedger(ledger: Ledger): Ledger {
+  if (ledger.budgetVersion === 2) return ledger
+  const rent = ledger.expenses.some(expense => expense.id === 'rent' || expense.title === '房租')
+  return { ...ledger, budgetVersion: 2, otherBudget: ledger.otherBudget ?? 1000,
+    expenses: rent ? ledger.expenses : [{ id:'rent', title:'房租', amount:1500, active:true, paid:false, category:'居住' }, ...ledger.expenses] }
 }
 
 /** Migrates the original one-time `paid` flag into the current month's payment. */
@@ -23,12 +26,12 @@ export function load(): Ledger {
   try {
     const ledger = JSON.parse(localStorage.getItem(key) || '') as Ledger
     if (!ledger?.expenses) return initialLedger
-    return {
+    return normalizeLedger({
       ...ledger,
       expenses: ledger.expenses.map(expense =>
         expense.paid && !expense.paidMonth ? { ...expense, paidMonth: currentMonth() } : expense,
       ),
-    }
+    })
   } catch { return initialLedger }
 }
 export function save(data: Ledger) { localStorage.setItem(key, JSON.stringify(data)) }
@@ -40,9 +43,9 @@ export function loadTest(): Ledger | null {
     if (filtered.length !== ledger.transactions.length) {
       const migrated = { ...ledger, transactions: filtered }
       saveTest(migrated)
-      return migrated
+      return normalizeLedger(migrated)
     }
-    return ledger
+    return normalizeLedger(ledger)
   } catch { return null }
 }
 export function saveTest(data: Ledger) { localStorage.setItem(testKey, JSON.stringify(data)) }

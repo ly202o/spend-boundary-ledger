@@ -23,5 +23,11 @@ export function calc(l: Ledger, date = new Date(), selectedMonth = billingMonthF
   const mealDaily = l.mode==='fixed' ? cents(l.mealBudget)/days : Math.max(0,cents(l.mealBudget)-priorMeal)/(days-elapsed+1)
   const mealRemaining = Math.max(0,cents(l.mealBudget)-mealSpent)
   const income = sum((l.incomes||[]).filter(x=>x.date>=range.startKey&&x.date<=range.endKey))
-  return {spent:spent/100,income:income/100,fixedReserved:fixedReserved/100,wishReserved:wishReserved/100,reserved:(fixedReserved+wishReserved)/100,mealSpent:mealSpent/100,mealRemaining:mealRemaining/100,mealDaily:mealDaily/100,todayMeal:todayMeal/100,todayLeft:(mealDaily-todayMeal)/100,available:(cents(l.monthlyBudget)+income-spent-fixedReserved-wishReserved-mealRemaining)/100}
+  const otherSpent = spent - mealSpent
+  const fixedPaid = sum(transactions.filter(x=>x.source==='fixed'))
+  const fixedCommitted = fixedPaid + fixedReserved
+  const flexibleSpent = otherSpent - fixedPaid
+  const totalAfterCommitments = cents(l.monthlyBudget)-cents(l.mealBudget)-fixedCommitted
+  const flexibleBase = Math.min(l.otherBudget==null?totalAfterCommitments:cents(l.otherBudget),totalAfterCommitments)
+  return {spent:spent/100,income:income/100,otherSpent:otherSpent/100,fixedPaid:fixedPaid/100,fixedCommitted:fixedCommitted/100,flexibleSpent:flexibleSpent/100,flexibleBase:flexibleBase/100,fixedReserved:fixedReserved/100,wishReserved:wishReserved/100,reserved:(fixedReserved+wishReserved)/100,mealSpent:mealSpent/100,mealRemaining:mealRemaining/100,mealDaily:mealDaily/100,todayMeal:todayMeal/100,todayLeft:(mealDaily-todayMeal)/100,available:(flexibleBase-flexibleSpent-wishReserved)/100}
 }

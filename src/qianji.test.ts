@@ -11,7 +11,7 @@ test('imports QianJi expenses and skips income and duplicates', () => {
   ]
   const result = parseQianJiRows(rows, new Set(['old']))
   assert.equal(result.transactions.length, 1)
-  assert.deepEqual(result.transactions[0], { id:'a1', title:'午餐', amount:18.5, category:'三餐', date:'2026-09-27', note:'鸡腿饭', source:'meal' })
+  assert.deepEqual(result.transactions[0], { id:'a1', title:'午餐', amount:18.5, category:'午餐', categoryGroup:'三餐', date:'2026-09-27', time:'12:30', note:'鸡腿饭', source:'meal' })
   assert.equal(result.skippedIncome, 1)
   assert.equal(result.duplicates, 1)
 })
@@ -22,4 +22,5 @@ test('exports the QianJi column layout', () => {
   assert.equal(rows[1][2], '三餐账本')
   assert.equal(rows[1][4], '咖啡')
   assert.equal(rows[1][5], '支出')
+  assert.equal(rows[1][1], '2026-09-27')
 })

@@ -19,6 +19,10 @@ const dateText = (value: Cell) => {
   const match = raw.match(/^(\d{4})[-/]?(\d{1,2})[-/]?(\d{1,2})/)
   return match ? `${match[1]}-${match[2].padStart(2,'0')}-${match[3].padStart(2,'0')}` : ''
 }
+const timeText = (value: Cell) => {
+  if (value instanceof Date && !Number.isNaN(value.getTime())) return `${String(value.getHours()).padStart(2,'0')}:${String(value.getMinutes()).padStart(2,'0')}`
+  return text(value).match(/(?:\s|T)(\d{1,2}):(\d{2})/)?.slice(1).map((part,index)=>index===0?part.padStart(2,'0'):part).join(':') || undefined
+}
 
 export function normalizeWorkbookRows(value: unknown): Cell[][] {
   if (!Array.isArray(value)) return []
@@ -50,7 +54,7 @@ export function parseQianJiRows(rows: Cell[][], existingIds = new Set<string>())
     const subcategory = text(cell(row,'二级分类'))
     const book = text(cell(row,'账本'))
     const note = text(cell(row,'备注'))
-    result.transactions.push({ id, title: subcategory || category, amount: Math.round(amount * 100) / 100, category, date, note: note || undefined, source: book.includes('三餐') ? 'meal' : 'general' })
+    result.transactions.push({ id, title: subcategory || category, amount: Math.round(amount * 100) / 100, category: subcategory || category, categoryGroup: category, date, time: timeText(cell(row,'时间')), note: note || undefined, source: book.includes('三餐') ? 'meal' : 'general' })
   }
   return result
 }
@@ -59,8 +63,8 @@ export function transactionsToQianJiRows(transactions: Transaction[]): Cell[][] 
   return [
     [...QIANJI_HEADERS],
     ...transactions.map(item=>[
-      item.id, `${item.date} 12:00:00`, item.source === 'meal' ? '三餐账本' : '消费边界账本', item.category,
-      item.title !== item.category ? item.title : '', '支出', item.amount, 'CNY', '', '', item.note || '', '', '', '', '', '', '', '', ''
+      item.id, item.time ? `${item.date} ${item.time}:00` : item.date, item.source === 'meal' ? '三餐账本' : '消费边界账本', item.categoryGroup || item.category,
+      item.categoryGroup ? item.category : item.title !== item.category ? item.title : '', '支出', item.amount, 'CNY', '', '', item.note || '', '', '', '', '', '', '', '', ''
     ])
   ]
 }

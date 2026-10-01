@@ -31,11 +31,23 @@ test('自由基金购买不消耗当月生活预算',()=>{
  assert.equal(calc(l,date).spent,0)
  assert.equal(calc(l,date).available,1000)
 })
-test('17日至次月16日共享账期，工资收入计入可支配',()=>{
+test('17日至次月16日共享账期，工资单独记录而不扩大生活预算',()=>{
  const ledger:Ledger={...base,incomes:[{id:'salary',title:'工资',amount:3000,date:'2026-09-30'}],transactions:[{id:'meal',title:'午餐',amount:20,category:'三餐',date:'2026-09-17',source:'meal'},{id:'outside',title:'旧账',amount:100,date:'2026-09-16',category:'其他'}]}
  const result=calc(ledger,new Date(2026,9,1,12),'2026-10')
  assert.equal(result.income,3000)
  assert.equal(result.spent,20)
  assert.equal(result.mealSpent,20)
- assert.equal(result.available,4000)
+ assert.equal(result.available,1000)
+})
+test('三餐支出不重复占用弹性额度，其他支出直接减少可支配',()=>{
+ const ledger:Ledger={...base,transactions:[{id:'meal',title:'午餐',amount:35,category:'午餐',date:'2026-09-17',source:'meal'},{id:'other',title:'日用品',amount:80,category:'日用品',date:'2026-09-18',source:'general'}]}
+ const result=calc(ledger,new Date(2026,8,18,12),'2026-10')
+ assert.equal(result.otherSpent,80)
+ assert.equal(result.available,920)
+})
+test('其他预算可单独调低，但不能超出生活总预算余额',()=>{
+ const lower=calc({...base,otherBudget:800},date)
+ const higher=calc({...base,otherBudget:1200},date)
+ assert.equal(lower.available,800)
+ assert.equal(higher.available,1000)
 })
