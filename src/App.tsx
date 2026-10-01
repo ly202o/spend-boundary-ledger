@@ -2,14 +2,14 @@ import { createContext, useContext, useEffect, useRef, useMemo, useState } from 
 import { CalendarDays, Check, Download, Home, LayoutGrid, Pencil, Plus, ReceiptText, RotateCcw, Sparkles, Trash2, Upload, WalletCards, X } from 'lucide-react'
 import { isTestMode, load, loadTest, normalizeLedger, save, saveTest, setStoredTestMode } from './store'
 import { calc, isOtherTransaction } from './budget'
-import type { CategoryGroup, DisplayPreferences, Income, Ledger, Transaction, Wish } from './types'
+import type { CategoryGroup, DisplayPreferences, Income, Ledger, MealTimes, Transaction, Wish } from './types'
 import type { User } from '@supabase/supabase-js'
 import { supabase, syncConfigured } from './supabase'
 import { fetchCloudLedger, saveCloudLedger, stamp } from './sync'
 import { spendingPeriodDays, spendingPeriodSummary, type SpendingPeriod } from './period'
 import { normalizeWorkbookRows, parseQianJiRows, transactionsToQianJiRows, type QianJiImportResult } from './qianji'
 import { billingMonthForDate, billingRange } from './cycle'
-import { categoryGroups, groupForCategory, mealCategoryForTime } from './categories'
+import { categoryGroups, defaultMealTimes, groupForCategory, mealCategoryForTime, validMealTimes } from './categories'
 
 const defaultDisplay:DisplayPreferences={groupThousands:false,font:'system'}
 const DisplayContext=createContext(defaultDisplay)
@@ -128,8 +128,12 @@ export default function App() {
       </div>
       <button className="nav-add" aria-label="记一笔" onClick={() => setModal('transaction')}><Plus size={33}/></button>
     </nav>
-    {modal === 'transaction' && <TransactionForm groups={categoryGroups(ledger)} close={() => setModal(null)} save={(x) => update({ ...ledger, transactions: [x, ...ledger.transactions] })}/>}
-    {editingTransaction && <TransactionForm groups={categoryGroups(ledger)} initial={editingTransaction} close={() => setEditingTransaction(null)} save={(x) => { update({ ...ledger, transactions: ledger.transactions.map(item => item.id === x.id ? x : item) }); setEditingTransaction(null) }}/>}
+    {modal === 'transaction' && <TransactionForm groups={categoryGroups(ledger)} mealTimes={ledger.mealTimes} close={() => setModal(null)} save={(x) => update({ ...ledger, transactions: [x, ...ledger.transactions] })}/>}
+    {editingTransaction && <TransactionForm
+      groups={categoryGroups(ledger)} mealTimes={ledger.mealTimes} initial={editingTransaction}
+      close={() => setEditingTransaction(null)}
+      save={(x) => { update({ ...ledger, transactions: ledger.transactions.map(item => item.id === x.id ? x : item) }); setEditingTransaction(null) }}
+    />}
     {modal === 'wish' && <WishForm close={() => setModal(null)} add={(x) => update({ ...ledger, wishes: [x, ...ledger.wishes] })}/>}
     {modal === 'income' && <IncomeForm close={() => setModal(null)} save={(x) => update({...ledger,incomes:[...(ledger.incomes||[]),x]})}/>}
     {editingIncome&&<IncomeForm initial={editingIncome} close={()=>setEditingIncome(null)} save={income=>{update({...ledger,incomes:(ledger.incomes||[]).map(item=>item.id===income.id?income:item)});setEditingIncome(null)}}/>}
@@ -177,7 +181,14 @@ function BookModeSettings({ledger,update}:{ledger:Ledger;update:(ledger:Ledger)=
     if(ledger.fixedDailyAmount===undefined&&trimmed===automaticDaily)return
     if(+trimmed!==ledger.fixedDailyAmount)update({...ledger,fixedDailyAmount:+trimmed})
   }
-  return <Page title="账本模式"><section className="panel settings"><div className="mode-card"><b>三餐日额模式</b><div className="mode-options"><button type="button" className={ledger.mode==='fixed'?'active':''} onClick={()=>update({...ledger,mode:'fixed'})}>固定日额</button><button type="button" className={ledger.mode==='dynamic'?'active':''} onClick={()=>update({...ledger,mode:'dynamic'})}>动态均摊</button></div>{ledger.mode==='fixed'&&<><label>固定日额（元）<input type="number" min="0" max="100000000" step="0.01" inputMode="decimal" value={dailyDraft} onChange={event=>setDailyDraft(event.target.value)} onBlur={saveDaily} onKeyDown={event=>{if(event.key==='Enter')event.currentTarget.blur()}}/></label><small>留空并离开输入框可恢复按本账期三餐预算均分；自定义金额会沿用到之后的账期。</small></>}</div><div className="mode-card"><b>月账期</b><p>选择起始日，结束日自动设为下月前一天。</p><div className="cycle-day-grid">{Array.from({length:28},(_,index)=><button key={index+1} type="button" className={start===index+1?'active':''} onClick={()=>update({...ledger,billingStartDay:index+1})}>{index+1}</button>)}</div><small>当前：每月 {start} 日至{start===1?'当月最后一天':`次月 ${start-1} 日`}</small></div></section></Page>
+  return <Page title="账本模式"><section className="panel settings"><div className="mode-card"><b>三餐日额模式</b><div className="mode-options"><button type="button" className={ledger.mode==='fixed'?'active':''} onClick={()=>update({...ledger,mode:'fixed'})}>固定日额</button><button type="button" className={ledger.mode==='dynamic'?'active':''} onClick={()=>update({...ledger,mode:'dynamic'})}>动态均摊</button></div>{ledger.mode==='fixed'&&<><label>固定日额（元）<input type="number" min="0" max="100000000" step="0.01" inputMode="decimal" value={dailyDraft} onChange={event=>setDailyDraft(event.target.value)} onBlur={saveDaily} onKeyDown={event=>{if(event.key==='Enter')event.currentTarget.blur()}}/></label><small>留空并离开输入框可恢复按本账期三餐预算均分；自定义金额会沿用到之后的账期。</small></>}</div><MealTimeSettings times={ledger.mealTimes} onSave={mealTimes=>update({...ledger,mealTimes})}/><div className="mode-card"><b>月账期</b><p>选择起始日，结束日自动设为下月前一天。</p><div className="cycle-day-grid">{Array.from({length:28},(_,index)=><button key={index+1} type="button" className={start===index+1?'active':''} onClick={()=>update({...ledger,billingStartDay:index+1})}>{index+1}</button>)}</div><small>当前：每月 {start} 日至{start===1?'当月最后一天':`次月 ${start-1} 日`}</small></div></section></Page>
+}
+function MealTimeSettings({times,onSave}:{times?:MealTimes;onSave:(times:MealTimes)=>void}) {
+  const [draft,setDraft]=useState<MealTimes>(()=>({...defaultMealTimes,...times}))
+  useEffect(()=>setDraft({...defaultMealTimes,...times}),[times])
+  const valid=validMealTimes(draft)
+  const fields=([['breakfast','早餐'],['lunch','午餐'],['dinner','晚餐'],['supper','夜宵']] as const)
+  return <div className="mode-card"><b>默认餐别时间</b><small>新记账按开始时间自动选餐别；改动不会影响已记的账。</small><div className="meal-time-grid">{fields.map(([key,label])=><label key={key}>{label}开始<input type="time" value={draft[key]} onChange={event=>setDraft({...draft,[key]:event.target.value})}/></label>)}</div>{!valid&&<small className="meal-time-error" role="alert">请按早餐、午餐、晚餐、夜宵的顺序设置不同的开始时间。</small>}<div className="meal-time-actions"><button type="button" disabled={!valid} onClick={()=>onSave(draft)}>保存时间</button><button type="button" onClick={()=>{setDraft({...defaultMealTimes});onSave({...defaultMealTimes})}}>恢复默认</button></div></div>
 }
 function HomePage({ stats, ledger, referenceDate, selectedMonth, onShowCalculation }: { stats: ReturnType<typeof calc>; ledger: Ledger; referenceDate:Date; selectedMonth:string; onShowCalculation:()=>void }) {
   const [period,setPeriod] = useState<SpendingPeriod>('week')
@@ -353,11 +364,11 @@ function Modal({title,children,close}:{title:string;children:React.ReactNode;clo
   },[])
   return <div className="shade" onClick={e=>{if(e.target===e.currentTarget)close()}}><form ref={ref} role="dialog" aria-modal="true" aria-label={title} className="modal" onSubmit={e=>e.preventDefault()}><button type="button" aria-label="关闭弹窗" className="close" onClick={close}><X/></button><h2>{title}</h2>{children}</form></div>
 }
-function TransactionForm({close,save,initial,groups}:{close:()=>void;save:(x:Transaction)=>void;initial?:Transaction;groups:CategoryGroup[]}) {
+function TransactionForm({close,save,initial,groups,mealTimes}:{close:()=>void;save:(x:Transaction)=>void;initial?:Transaction;groups:CategoryGroup[];mealTimes?:MealTimes}) {
   const startingTime=initial?.time||currentTime()
   const initialGroup=initial?.categoryGroup||groupForCategory(groups,initial?.category||'三餐')
   const initialChildren=groups.find(item=>item.name===initialGroup)?.children||['其他']
-  const initialCategory=initialChildren.includes(initial?.category||'')?initial!.category:initialChildren.includes(initial?.title||'')?initial!.title:initial?initialChildren[0]:mealCategoryForTime(startingTime,initialChildren)
+  const initialCategory=initialChildren.includes(initial?.category||'')?initial!.category:initialChildren.includes(initial?.title||'')?initial!.title:initial?initialChildren[0]:mealCategoryForTime(startingTime,initialChildren,mealTimes)
   const [group,setGroup]=useState(groups.some(item=>item.name===initialGroup)?initialGroup:groups[0].name)
   const [category,setCategory]=useState(initialCategory)
   const [title,setTitle]=useState(initial?.title||'')
@@ -368,8 +379,8 @@ function TransactionForm({close,save,initial,groups}:{close:()=>void;save:(x:Tra
   const [meal,setMeal]=useState(initial?initial.source==='meal':true)
   const [categoryTouched,setCategoryTouched]=useState(false)
   const canChooseMeal=!initial||!initial.source||initial.source==='meal'||initial.source==='general'
-  const chooseGroup=(name:string)=>{setGroup(name);const children=groups.find(item=>item.name===name)?.children||['其他'];setCategory(name==='三餐'?mealCategoryForTime(time,children):children[0]);setCategoryTouched(false);setMeal(name==='三餐')}
-  const chooseTime=(value:string)=>{setTime(value);if(!initial&&group==='三餐'&&!categoryTouched&&value)setCategory(mealCategoryForTime(value,groups.find(item=>item.name===group)?.children||[]))}
+  const chooseGroup=(name:string)=>{setGroup(name);const children=groups.find(item=>item.name===name)?.children||['其他'];setCategory(name==='三餐'?mealCategoryForTime(time,children,mealTimes):children[0]);setCategoryTouched(false);setMeal(name==='三餐')}
+  const chooseTime=(value:string)=>{setTime(value);if(!initial&&group==='三餐'&&!categoryTouched&&value)setCategory(mealCategoryForTime(value,groups.find(item=>item.name===group)?.children||[],mealTimes))}
   const submit=(again=false)=>{
     if(!validAmount(amount)||!date||!time)return
     save({...initial,id:initial?.id||uid(),title:title.trim()||category,amount:+amount,category,categoryGroup:group,date,time,note:note.trim()||undefined,source:canChooseMeal?(meal?'meal':'general'):initial?.source})

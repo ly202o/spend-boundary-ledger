@@ -1,4 +1,11 @@
-import type { CategoryGroup, Ledger } from './types'
+import type { CategoryGroup, Ledger, MealTimes } from './types'
+
+export const defaultMealTimes: MealTimes = { breakfast: '00:00', lunch: '11:00', dinner: '17:00', supper: '22:00' }
+const minutes = (time: string) => /^([01]\d|2[0-3]):[0-5]\d$/.test(time) ? Number(time.slice(0, 2)) * 60 + Number(time.slice(3)) : NaN
+export function validMealTimes(times: MealTimes): boolean {
+  const values = [times.breakfast, times.lunch, times.dinner, times.supper].map(minutes)
+  return values.every(Number.isFinite) && values.every((value, index) => index === 0 || value > values[index - 1])
+}
 
 export const defaultCategoryGroups: CategoryGroup[] = [
   { name: '三餐', children: ['早餐', '午餐', '晚餐', '饮料', '夜宵', '其他'] },
@@ -24,9 +31,13 @@ export function groupForCategory(groups: CategoryGroup[], category: string) {
 }
 
 /** Use the chosen transaction time, while respecting customized meal categories. */
-export function mealCategoryForTime(time: string, children: string[]): string {
-  const hour = Number(time.slice(0, 2))
-  const preferred = hour < 11 ? '早餐' : hour < 17 ? '午餐' : hour < 22 ? '晚餐' : '夜宵'
+export function mealCategoryForTime(time: string, children: string[], mealTimes: MealTimes = defaultMealTimes): string {
+  const current = minutes(time)
+  if (!Number.isFinite(current)) return children[0] || '其他'
+  const starts = validMealTimes(mealTimes) ? mealTimes : defaultMealTimes
+  const preferred = current < minutes(starts.breakfast) || current >= minutes(starts.supper) ? '夜宵'
+    : current < minutes(starts.lunch) ? '早餐'
+    : current < minutes(starts.dinner) ? '午餐' : '晚餐'
   const choices = preferred === '夜宵' ? ['宵夜', '夜宵'] : [preferred]
   return choices.find(name => children.includes(name)) || children[0] || '其他'
 }

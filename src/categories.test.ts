@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { categoryGroups, groupForCategory, mealCategoryForTime } from './categories.ts'
+import { categoryGroups, defaultMealTimes, groupForCategory, mealCategoryForTime, validMealTimes } from './categories.ts'
 import { normalizeLedger } from './store.ts'
 import type { Ledger } from './types'
 
@@ -30,4 +30,18 @@ test('新记账按时间选择三餐小类，手动分类可继续覆盖', () =>
   assert.equal(mealCategoryForTime('21:59',choices),'晚餐')
   assert.equal(mealCategoryForTime('22:00',choices),'夜宵')
   assert.equal(mealCategoryForTime('23:30',['宵夜','其他']),'宵夜')
+})
+
+test('餐别开始时间可修改，凌晨仍归入前一晚的夜宵', () => {
+  const choices=categoryGroups(ledger)[0].children
+  const times={breakfast:'06:30',lunch:'11:30',dinner:'18:00',supper:'23:00'}
+  assert.equal(validMealTimes(times),true)
+  assert.equal(mealCategoryForTime('05:59',choices,times),'夜宵')
+  assert.equal(mealCategoryForTime('06:30',choices,times),'早餐')
+  assert.equal(mealCategoryForTime('11:29',choices,times),'早餐')
+  assert.equal(mealCategoryForTime('11:30',choices,times),'午餐')
+  assert.equal(mealCategoryForTime('18:00',choices,times),'晚餐')
+  assert.equal(mealCategoryForTime('23:00',choices,times),'夜宵')
+  assert.equal(validMealTimes({...times,lunch:'05:00'}),false)
+  assert.equal(mealCategoryForTime('11:00',choices,{...times,lunch:'05:00'}),mealCategoryForTime('11:00',choices,defaultMealTimes))
 })
