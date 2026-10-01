@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { calc, isOtherTransaction } from './budget.ts'
+import { budgetSummary, calc, isOtherTransaction, withBudgets } from './budget.ts'
 import type { Ledger } from './types'
 const base: Ledger = {monthlyBudget:4000,mealBudget:1500,rentBudget:1500,otherBudget:1000,mode:'dynamic',transactions:[],wishes:[],expenses:[]}
 const date = new Date(2026,8,1,12)
@@ -47,12 +47,13 @@ test('三餐支出不重复占用弹性额度，其他支出直接减少可支�
  assert.equal(result.otherSpent,80)
  assert.equal(result.available,920)
 })
-test('其他预算可单独调低，但不能超出生活总预算余额',()=>{
- const lower=calc({...base,otherBudget:800},date)
- const higher=calc({...base,otherBudget:1200},date)
- assert.equal(lower.available,800)
- assert.equal(higher.available,1000)
- assert.equal(calc({...base,rentBudget:1800},date).available,700)
+test('剩余预算自动由总预算扣除预留，自定义预算支出不重复扣除',()=>{
+ const custom=withBudgets(base,[{id:'meal',name:'三餐',amount:1500,kind:'meal'},{id:'rent',name:'房租',amount:1500,kind:'rent'},{id:'travel',name:'旅行',amount:200,kind:'custom'}])
+ assert.equal(budgetSummary(custom).remaining,800)
+ assert.equal(calc(custom,date).available,800)
+ const spent={...custom,transactions:[{id:'t',title:'车票',amount:50,category:'交通',date:'2026-09-01',budgetId:'travel',source:'general' as const}]}
+ assert.equal(calc(spent,date).available,800)
+ assert.equal(calc({...spent,transactions:[{...spent.transactions[0],budgetId:undefined}]},date).available,750)
 })
 test('固定日额支持自定义，动态均摊不受自定义金额影响',()=>{
  const fixed:Ledger={...base,mode:'fixed',fixedDailyAmount:42.5}

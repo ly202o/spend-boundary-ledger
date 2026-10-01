@@ -8,20 +8,20 @@ export function validMealTimes(times: MealTimes): boolean {
 }
 
 export const defaultCategoryGroups: CategoryGroup[] = [
-  { name: '三餐', children: ['早餐', '午餐', '晚餐', '饮料', '夜宵', '其他'] },
-  { name: '居住', children: ['房租', '水电', '物业', '其他'] },
-  { name: '日常', children: ['日用品', '购物', '交通', '订阅', '其他'] },
+  { name: '三餐', icon:'🍽️', children: ['早餐', '午餐', '晚餐', '饮料', '夜宵', '其他'] },
+  { name: '居住', icon:'🏠', children: ['房租', '水电', '物业', '其他'] },
+  { name: '日常', icon:'🛒', children: ['日用品', '购物', '交通', '订阅', '其他'] },
 ]
 
 export function categoryGroups(ledger: Ledger): CategoryGroup[] {
-  const groups = (ledger.categoryGroups?.length ? ledger.categoryGroups : defaultCategoryGroups).map(group => ({ ...group, children: [...group.children] }))
+  if (ledger.categoryGroups) return ledger.categoryGroups.map(group=>({...group,children:[...group.children]}))
+  const groups = defaultCategoryGroups.map(group => ({ ...group, children: [...group.children] }))
   for (const item of ledger.transactions) {
     if (!item.categoryGroup) continue
     let group = groups.find(group => group.name === item.categoryGroup)
     if (!group) { group = { name: item.categoryGroup, children: ['其他'] }; groups.push(group) }
     if (item.category && !group.children.includes(item.category)) group.children.splice(Math.max(0,group.children.length-1),0,item.category)
   }
-  if (ledger.categoryGroups?.length) return groups
   const legacy = (ledger.categories || []).filter(name => !groups.some(group => group.name === name || group.children.includes(name)))
   return legacy.length ? [...groups, { name: '自定义', children: [...legacy, '其他'] }] : groups
 }
