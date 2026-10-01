@@ -2,12 +2,12 @@ import { createContext, useContext, useEffect, useRef, useMemo, useState } from 
 import { CalendarDays, Check, Download, Home, LayoutGrid, Pencil, Plus, ReceiptText, RotateCcw, Sparkles, Trash2, Upload, WalletCards, X } from 'lucide-react'
 import { initialLedger, loadWorkspace, normalizeLedger, saveWorkspace } from './store'
 import { budgetSummary, calc, isOtherTransaction, withBudgets } from './budget'
-import type { BudgetAllocation, CategoryGroup, ChartThresholds, DisplayPreferences, Income, Ledger, LedgerBook, LedgerWorkspace, MealTimes, Transaction, TrashEntry, TrashKind, Wish } from './types'
+import type { BudgetAllocation, CategoryGroup, ChartColors, ChartThresholds, DisplayPreferences, Income, Ledger, LedgerBook, LedgerWorkspace, MealTimes, Transaction, TrashEntry, TrashKind, Wish } from './types'
 import { spendingPeriodDays, spendingPeriodSummary, type SpendingPeriod } from './period'
 import { normalizeWorkbookRows, parseQianJiRows, transactionsToQianJiRows, type QianJiImportResult } from './qianji'
 import { billingMonthForDate, billingRange } from './cycle'
 import { categoryGroups, defaultMealTimes, groupForCategory, mealCategoryForTime, validMealTimes } from './categories'
-import { defaultChartThresholds, spendingTone, validChartThresholds } from './chart-tone'
+import { defaultChartColors, defaultChartThresholds, spendingTone, validChartColors, validChartThresholds } from './chart-tone'
 
 const defaultDisplay:DisplayPreferences={groupThousands:false,font:'system'}
 const DisplayContext=createContext(defaultDisplay)
@@ -241,11 +241,16 @@ function MealTimeSettings({times,onSave}:{times?:MealTimes;onSave:(times:MealTim
   useEffect(()=>setDraft({...defaultMealTimes,...times}),[times])
   const valid=validMealTimes(draft)
   const fields=([['breakfast','早餐'],['lunch','午餐'],['dinner','晚餐'],['supper','夜宵']] as const)
-  return <div className="mode-card"><b>默认餐别时间</b><small>新记账按开始时间自动选餐别；改动不会影响已记的账。</small><div className="meal-time-grid">{fields.map(([key,label])=><label key={key}>{label}开始<input type="time" value={draft[key]} onChange={event=>setDraft({...draft,[key]:event.target.value})}/></label>)}</div>{!valid&&<small className="meal-time-error" role="alert">请按早餐、午餐、晚餐、夜宵的顺序设置不同的开始时间。</small>}<div className="meal-time-actions"><button type="button" disabled={!valid} onClick={()=>onSave(draft)}>保存时间</button><button type="button" onClick={()=>{setDraft({...defaultMealTimes});onSave({...defaultMealTimes})}}>恢复默认</button></div></div>
+  const options=(count:number)=>Array.from({length:count},(_,index)=>String(index).padStart(2,'0'))
+  const setPart=(key:keyof MealTimes,part:'hour'|'minute',value:string)=>{
+    const [hour,minute]=draft[key].split(':')
+    setDraft({...draft,[key]:part==='hour'?`${value}:${minute}`:`${hour}:${value}`})
+  }
+  return <div className="mode-card"><b>默认餐别时间</b><small>选择每餐的开始时间；改动不会影响已记的账。</small><div className="meal-time-grid">{fields.map(([key,label])=>{const [hour,minute]=draft[key].split(':');return <div className="meal-time-row" key={key}><span>{label}开始</span><div className="meal-time-picker"><select aria-label={`${label}小时`} value={hour} onChange={event=>setPart(key,'hour',event.target.value)}>{options(24).map(value=><option key={value} value={value}>{value}</option>)}</select><span aria-hidden="true">:</span><select aria-label={`${label}分钟`} value={minute} onChange={event=>setPart(key,'minute',event.target.value)}>{options(60).map(value=><option key={value} value={value}>{value}</option>)}</select></div></div>})}</div>{!valid&&<small className="meal-time-error" role="alert">请按早餐、午餐、晚餐、夜宵的顺序设置不同的开始时间。</small>}<div className="meal-time-actions"><button type="button" disabled={!valid} onClick={()=>onSave(draft)}>保存时间</button><button type="button" onClick={()=>{setDraft({...defaultMealTimes});onSave({...defaultMealTimes})}}>恢复默认</button></div></div>
 }
 function HomePage({ stats, ledger, referenceDate, selectedMonth, onPeriodChange, onShowCalculation }: { stats: ReturnType<typeof calc>; ledger: Ledger; referenceDate:Date; selectedMonth:string; onPeriodChange:(period:SpendingPeriod)=>void; onShowCalculation:()=>void }) {
   const period=ledger.spendingPeriod||'week'
-  return <div className="overview"><article className="hero" role="button" tabIndex={0} aria-label="查看本月真正可支配计算明细" onClick={onShowCalculation} onKeyDown={event=>{if(event.key==='Enter'||event.key===' '){event.preventDefault();onShowCalculation()}}}><span className="hero-label"><WalletCards size={18}/>本月真正可支配</span><strong><Money value={stats.available}/></strong><div className="hero-bottom"><span>其他支出<b><Money value={stats.otherSpent}/></b></span><span>三餐支出<b><Money value={stats.mealSpent}/></b></span><span>三餐剩余<b><Money value={stats.mealRemaining}/></b></span></div></article><SpendingPeriodCard period={period} setPeriod={onPeriodChange} transactions={ledger.transactions} allocatedBudgetIds={new Set(budgetSummary(ledger).allocations.filter(item=>item.kind!=='meal').map(item=>item.id))} dailyLimit={stats.mealDaily} monthlyBudget={ledger.monthlyBudget} otherBudget={budgetSummary(ledger).remaining} thresholds={ledger.chartThresholds} referenceDate={referenceDate} selectedMonth={selectedMonth} billingStartDay={ledger.billingStartDay||17}/></div>
+  return <div className="overview"><article className="hero" role="button" tabIndex={0} aria-label="查看本月真正可支配计算明细" onClick={onShowCalculation} onKeyDown={event=>{if(event.key==='Enter'||event.key===' '){event.preventDefault();onShowCalculation()}}}><span className="hero-label"><WalletCards size={18}/>本月真正可支配</span><strong><Money value={stats.available}/></strong><div className="hero-bottom"><span>其他支出<b><Money value={stats.otherSpent}/></b></span><span>三餐支出<b><Money value={stats.mealSpent}/></b></span><span>三餐剩余<b><Money value={stats.mealRemaining}/></b></span></div></article><SpendingPeriodCard period={period} setPeriod={onPeriodChange} transactions={ledger.transactions} allocatedBudgetIds={new Set(budgetSummary(ledger).allocations.filter(item=>item.kind!=='meal').map(item=>item.id))} dailyLimit={stats.mealDaily} monthlyBudget={ledger.monthlyBudget} otherBudget={budgetSummary(ledger).remaining} thresholds={ledger.chartThresholds} colors={ledger.chartColors} referenceDate={referenceDate} selectedMonth={selectedMonth} billingStartDay={ledger.billingStartDay||17}/></div>
 }
 function Records({items,onDelete,onEdit}:{items:Transaction[];onDelete:(id:string)=>void;onEdit:(item:Transaction)=>void}) { return <Page title="全部账目"><div className="records-panel">{items.length ? items.map(x=><SwipeRecord key={x.id} item={x} onDelete={()=>onDelete(x.id)} onEdit={()=>onEdit(x)}/>):<div className="panel"><Empty text="点击下方加号，记录第一笔消费。"/></div>}</div></Page> }
 function SwipeRecord({item,onDelete,onEdit}:{item:Transaction;onDelete:()=>void;onEdit:()=>void}) {
@@ -256,7 +261,7 @@ function SwipeRecord({item,onDelete,onEdit}:{item:Transaction;onDelete:()=>void;
     </div>
   </SwipeActions>
 }
-function SpendingPeriodCard({period,setPeriod,transactions,allocatedBudgetIds,dailyLimit,monthlyBudget,otherBudget,thresholds,referenceDate,selectedMonth,billingStartDay}:{period:SpendingPeriod;setPeriod:(period:SpendingPeriod)=>void;transactions:Transaction[];allocatedBudgetIds:Set<string>;dailyLimit:number;monthlyBudget:number;otherBudget:number;thresholds?:ChartThresholds;referenceDate:Date;selectedMonth:string;billingStartDay:number}) {
+function SpendingPeriodCard({period,setPeriod,transactions,allocatedBudgetIds,dailyLimit,monthlyBudget,otherBudget,thresholds,colors,referenceDate,selectedMonth,billingStartDay}:{period:SpendingPeriod;setPeriod:(period:SpendingPeriod)=>void;transactions:Transaction[];allocatedBudgetIds:Set<string>;dailyLimit:number;monthlyBudget:number;otherBudget:number;thresholds?:ChartThresholds;colors?:ChartColors;referenceDate:Date;selectedMonth:string;billingStartDay:number}) {
   const [category,setCategory] = useState<'meal'|'other'|'all'>('meal')
   const [weekOffset,setWeekOffset] = useState(0)
   const labels:Record<SpendingPeriod,string>={week:'本周',seven:'近7日',month:'本月'}
@@ -268,6 +273,8 @@ function SpendingPeriodCard({period,setPeriod,transactions,allocatedBudgetIds,da
   const cycleDays=billingRange(selectedMonth,billingStartDay).days
   const colorDailyLimit=category==='meal'?dailyLimit:category==='other'?otherBudget/cycleDays:monthlyBudget/cycleDays
   const tone=(amount:number)=>spendingTone(amount,colorDailyLimit,thresholds)
+  const palette=colors&&validChartColors(colors)?colors:defaultChartColors
+  const paletteStyle={'--tone-within':palette.within,'--tone-near':palette.near,'--tone-over':palette.over,'--tone-severe':palette.severe} as React.CSSProperties
   const spentHeight=(amount:number)=>amount>0?Math.max(8,amount/maxAmount*68):0
   const weekdays=['一','二','三','四','五','六','日']
   const actions=<>{(['week','seven','month'] as const).map(id=><button key={id} className={`period-choice ${period===id?'selected':''}`} aria-label={`切换到${labels[id]}`} onClick={()=>{setPeriod(id);setWeekOffset(0)}}><span>{labels[id]}</span></button>)}</>
@@ -279,7 +286,7 @@ function SpendingPeriodCard({period,setPeriod,transactions,allocatedBudgetIds,da
   const periodTitle=period==='week'&&weekOffset>0?`${periodDate.getMonth()+1}月第${weekNumber}周`:labels[period]
   const weekActions=[weekOffset+2,weekOffset+1,weekOffset].map((offset,index)=>{const target=new Date(referenceDate.getFullYear(),referenceDate.getMonth(),referenceDate.getDate()-offset*7,12);const first=new Date(target.getFullYear(),target.getMonth(),1,12);const number=Math.ceil((target.getDate()+((first.getDay()+6)%7))/7);const prefix=target.getMonth()===periodDate.getMonth()?'':`${target.getMonth()+1}月`;return <button key={offset} className={`week-choice ${index===2?'selected':''}`} onClick={()=>{setPeriod('week');setWeekOffset(offset)}}><span>{offset===0?'本周':`${prefix}第${['','一','二','三','四','五','六'][number]||number}周`}</span></button>})
   return <SwipeActions className="period-swipe" actionCount={3} actions={actions} leftActions={weekActions} leftActionCount={3}>
-    <article className="period-card">
+    <article className="period-card" style={paletteStyle}>
       <div className="period-heading"><span className="eyebrow">{periodTitle}支出</span><CategorySelector value={category} onChange={setCategory}/></div>
       <div className="period-meta">{category==='meal'?<div className="period-budget">{period==='week'&&<span>周额 <Money value={weekLimit}/>　剩余 <b><Money value={weekLimit-summary.total}/></b></span>}<span>日额 <Money value={dailyLimit}/>　剩余 <b><Money value={dailyLimit-todaySpent}/></b></span></div>:<span>颜色参考{category==='other'?'其他预算':'生活预算'}日额 <Money value={colorDailyLimit}/></span>}</div>
       <div className="period-total"><strong><Money value={summary.total}/></strong><span>日均 <b><Money value={summary.dailyAverage}/></b></span></div>
@@ -289,9 +296,9 @@ function SpendingPeriodCard({period,setPeriod,transactions,allocatedBudgetIds,da
 }
 function CategorySelector({value,onChange}:{value:'meal'|'other'|'all';onChange:(value:'meal'|'other'|'all')=>void}) {
   const [open,setOpen]=useState(false)
-  const timer=useRef<ReturnType<typeof setTimeout>|null>(null)
+  const lastClick=useRef(0)
   const labels={meal:'三餐支出',other:'其他支出',all:'全部支出'}
-  return <div className="category-selector"><button type="button" className="category-trigger" aria-label={`当前${labels[value]}，长按切换`} onPointerDown={()=>{timer.current=setTimeout(()=>setOpen(true),450)}} onPointerUp={()=>{if(timer.current)clearTimeout(timer.current)}} onPointerCancel={()=>{if(timer.current)clearTimeout(timer.current)}} onContextMenu={event=>{event.preventDefault();setOpen(true)}} onKeyDown={event=>{if(event.key==='Enter'||event.key===' ')setOpen(true)}}>{labels[value]}</button>{open&&<div className="category-options" role="group" aria-label="选择支出分类">{(['meal','other','all'] as const).map(id=><button key={id} type="button" className={value===id?'active':''} onClick={()=>{onChange(id);setOpen(false)}}>{labels[id]}</button>)}</div>}</div>
+  return <div className="category-selector"><button type="button" className="category-trigger" aria-label={`当前${labels[value]}，双击切换`} aria-expanded={open} onClick={()=>{const current=Date.now();if(current-lastClick.current<420)setOpen(true);lastClick.current=current}} onDoubleClick={()=>setOpen(true)} onKeyDown={event=>{if(event.key==='Enter'||event.key===' '){event.preventDefault();setOpen(true)}}}>{labels[value]}</button>{open&&<div className="category-options" role="group" aria-label="选择支出分类">{(['meal','other','all'] as const).map(id=><button key={id} type="button" className={value===id?'active':''} onClick={()=>{onChange(id);setOpen(false)}}>{labels[id]}</button>)}</div>}</div>
 }
 function Wishes({ledger,stats,onAdd,onBuy,onEdit,onDelete}:{ledger:Ledger;stats:ReturnType<typeof calc>;onAdd:()=>void;onBuy:(id:string)=>void;onEdit:(wish:Wish)=>void;onDelete:(wish:Wish)=>void}) {
   return <Page title="愿望单" action="添加愿望" onAction={onAdd}><p className="description">愿望先作计划，购买后才计入支出。</p><div className="cards">{ledger.wishes.length ? ledger.wishes.map(x => <SwipeActions key={x.id} className="wish-swipe" actionCount={3} actions={<><button className="swipe-pay" onClick={()=>onBuy(x.id)}><Check size={19}/><span>已购买</span></button><button className="swipe-edit" onClick={()=>onEdit(x)}><Pencil size={18}/><span>编辑</span></button><button className="swipe-delete" onClick={()=>onDelete(x)}><Trash2 size={19}/><span>删除</span></button></>}><article className="wish"><div><span className="pill">{x.intensity}/10 想要</span><h3>{x.title}</h3><small>{x.source === 'budget' ? '本月可支配额度' : x.source === 'freedom' ? '自由基金' : '暂未决定'}</small></div><b><Money value={x.amount}/></b></article></SwipeActions>) : <Empty text="把想买的东西放进来，再决定它值不值得占用预算。"/>}</div><div className="notice">计划中的愿望：<b><Money value={stats.wishReserved}/></b></div></Page>
@@ -322,21 +329,26 @@ function SettingsPage({ledger,update,onReset,onExportBackup,onUndoReset,canUndoR
   const display=ledger.display||defaultDisplay
   return <Page title="设置"><div className="panel settings">
     <section className="display-card"><b>显示设置</b><label className="switch-row"><span>金额使用千位分隔符<small>{display.groupThousands?'显示为 1,000.00':'显示为 1000.00'}</small></span><input type="checkbox" checked={display.groupThousands} onChange={e=>update({...ledger,display:{...display,groupThousands:e.target.checked}})}/></label><label>界面字体<select value={display.font} onChange={e=>update({...ledger,display:{...display,font:e.target.value as DisplayPreferences['font']}})}><option value="system">系统默认</option><option value="rounded">圆润字体</option><option value="serif">宋体</option></select></label></section>
-    <ChartThresholdSettings thresholds={ledger.chartThresholds} onSave={chartThresholds=>update({...ledger,chartThresholds})}/>
+    <ChartThresholdSettings thresholds={ledger.chartThresholds} colors={ledger.chartColors} onSave={chartThresholds=>update({...ledger,chartThresholds})} onSaveColors={chartColors=>update({...ledger,chartColors})}/>
     <ImportExportSettings ledger={ledger} update={update}/>
     <section className="reset-card"><div><b>重置当前账本</b><small>只重置当前账本，其他账本不受影响。请先决定是否导出完整备份。</small></div>{confirmingReset?<div className="reset-confirm"><span>重置前要导出数据吗？</span><button type="button" onClick={()=>setConfirmingReset(false)}>取消</button><button type="button" onClick={()=>{onExportBackup();onReset();setConfirmingReset(false)}}>导出并重置</button><button type="button" className="danger" onClick={()=>{onReset();setConfirmingReset(false)}}>不导出，直接重置</button></div>:<button type="button" className="reset-button" onClick={()=>setConfirmingReset(true)}>重置数据</button>}{canUndoReset&&<button type="button" className="undo-reset" onClick={onUndoReset}><RotateCcw size={16}/>撤回刚才的重置</button>}</section>
     <p>数据仅保存在当前设备；需要跨设备使用时，请先导出再在另一设备导入。</p>
   </div></Page>
 }
-function ChartThresholdSettings({thresholds,onSave}:{thresholds?:ChartThresholds;onSave:(value:ChartThresholds)=>void}) {
+function ChartThresholdSettings({thresholds,colors,onSave,onSaveColors}:{thresholds?:ChartThresholds;colors?:ChartColors;onSave:(value:ChartThresholds)=>void;onSaveColors:(value:ChartColors)=>void}) {
   const saved=thresholds&&validChartThresholds(thresholds)?thresholds:defaultChartThresholds
+  const savedColors=colors&&validChartColors(colors)?colors:defaultChartColors
   const [near,setNear]=useState(String(saved.nearPercent))
   const [severe,setSevere]=useState(String(saved.severePercent))
+  const [palette,setPalette]=useState<ChartColors>(savedColors)
   useEffect(()=>{setNear(String(saved.nearPercent));setSevere(String(saved.severePercent))},[saved.nearPercent,saved.severePercent])
+  useEffect(()=>setPalette(savedColors),[savedColors.within,savedColors.near,savedColors.over,savedColors.severe])
   const value={nearPercent:Number(near),severePercent:Number(severe)}
   const valid=near.trim()!==''&&severe.trim()!==''&&validChartThresholds(value)
   const changed=value.nearPercent!==saved.nearPercent||value.severePercent!==saved.severePercent
-  return <section className="display-card chart-threshold-settings"><b>支出颜色</b><small>按每天对应预算的使用比例着色；柱子和月历方块使用同一规则。</small><div className="chart-color-legend"><span className="within">未接近</span><span className="near">接近超支</span><span className="over">轻度超支</span><span className="severe">严重超支</span></div><div className="chart-threshold-fields"><label>接近超支从日额的百分之几开始<input type="number" min="1" max="100" step="1" value={near} onChange={event=>setNear(event.target.value)}/></label><label>严重超支从日额的百分之几开始<input type="number" min="100" max="500" step="1" value={severe} onChange={event=>setSevere(event.target.value)}/></label></div><small>超过 100% 后显示橙色；超过严重超支界线后显示红色。默认是 80% 和 130%。</small>{!valid&&<small className="meal-time-error" role="alert">接近界线请填 1–100%，严重界线请填 100–500%。</small>}<button type="button" disabled={!valid||!changed} onClick={()=>onSave(value)}>保存颜色界线</button></section>
+  const colorNames:[keyof ChartColors,string][]=[['within','未接近'],['near','接近超支'],['over','轻度超支'],['severe','严重超支']]
+  const colorsChanged=colorNames.some(([key])=>palette[key].toLowerCase()!==savedColors[key].toLowerCase())
+  return <section className="display-card chart-threshold-settings"><b>支出柱与月历颜色</b><small>按每天对应预算的使用比例着色；四档颜色可分别修改。</small><div className="chart-color-editors">{colorNames.map(([key,label])=><label key={key}><span>{label}</span><input type="color" aria-label={`${label}颜色`} value={palette[key]} onChange={event=>setPalette({...palette,[key]:event.target.value})}/><code>{palette[key].toUpperCase()}</code></label>)}</div><div className="chart-color-actions"><button type="button" disabled={!colorsChanged||!validChartColors(palette)} onClick={()=>onSaveColors(palette)}>保存颜色</button><button type="button" onClick={()=>{setPalette(defaultChartColors);onSaveColors(defaultChartColors)}}>恢复默认颜色</button></div><div className="chart-threshold-fields"><label>接近超支从日额的百分之几开始<input type="number" min="1" max="100" step="1" value={near} onChange={event=>setNear(event.target.value)}/></label><label>严重超支从日额的百分之几开始<input type="number" min="100" max="500" step="1" value={severe} onChange={event=>setSevere(event.target.value)}/></label></div><small>超过 100% 后属于轻度超支；超过严重界线后属于严重超支。默认界线为 80% 和 130%。</small>{!valid&&<small className="meal-time-error" role="alert">接近界线请填 1–100%，严重界线请填 100–500%。</small>}<button type="button" disabled={!valid||!changed} onClick={()=>onSave(value)}>保存比例界线</button></section>
 }
 function ImportExportSettings({ledger,update}:{ledger:Ledger;update:(ledger:Ledger)=>void}) {
   const inputRef = useRef<HTMLInputElement>(null)

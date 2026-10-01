@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { spendingTone, validChartThresholds } from './chart-tone.ts'
+import { defaultChartColors, spendingTone, validChartColors, validChartThresholds } from './chart-tone.ts'
 
 test('柱图与月历共用绿色、黄绿色、橙色、红色四级界线', () => {
   assert.equal(spendingTone(0, 50), 'zero')
@@ -22,4 +22,10 @@ test('颜色阈值可编辑，并拒绝无效比例', () => {
   assert.equal(spendingTone(76, 50, custom), 'severe')
   assert.equal(validChartThresholds({ nearPercent: 110, severePercent: 150 }), false)
   assert.equal(validChartThresholds({ nearPercent: 80, severePercent: 99 }), false)
+})
+
+test('四档支出颜色可编辑，且拒绝不安全的 CSS 色值',()=>{
+  assert.equal(validChartColors(defaultChartColors),true)
+  assert.equal(validChartColors({...defaultChartColors,over:'#ffa020'}),true)
+  assert.equal(validChartColors({...defaultChartColors,over:'red;position:absolute'}),false)
 })

@@ -1,6 +1,8 @@
-import type { ChartThresholds } from './types'
+import type { ChartColors, ChartThresholds } from './types'
 
 export const defaultChartThresholds: ChartThresholds = { nearPercent: 80, severePercent: 130 }
+export const defaultChartColors: ChartColors = { within: '#087d72', near: '#92ba3d', over: '#e88725', severe: '#d95047' }
+export const validChartColors = (colors: ChartColors) => Object.values(colors).every(color => /^#[0-9a-fA-F]{6}$/.test(color))
 
 export function validChartThresholds(value: ChartThresholds): boolean {
   return Number.isFinite(value.nearPercent) && Number.isFinite(value.severePercent)
