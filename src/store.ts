@@ -16,7 +16,9 @@ export function normalizeLedger(ledger: Ledger): Ledger {
   const rent = ledger.expenses?.find(expense => expense.id === 'rent' || expense.title === '房租')
   const rentBudget = ledger.rentBudget ?? rent?.amount ?? 1500
   const budgets = ledger.budgets ?? [{ id:'meal', name:'三餐', amount:ledger.mealBudget, kind:'meal' as const }, { id:'rent', name:'房租', amount:rentBudget, kind:'rent' as const }]
-  return { ...ledger, budgetVersion: 4, rentBudget, otherBudget: ledger.otherBudget ?? 1000, budgets, expenses: ledger.expenses ?? [] }
+  const chartColors=ledger.chartColors&&!ledger.chartColors.moderate?{...ledger.chartColors,moderate:ledger.chartColors.over,over:ledger.chartColors.over==='#e88725'?'#f5d780':ledger.chartColors.over}:ledger.chartColors
+  const chartThresholds=ledger.chartThresholds&&!ledger.chartThresholds.moderatePercent?{...ledger.chartThresholds,moderatePercent:Math.min(115,100+(ledger.chartThresholds.severePercent-100)/2)}:ledger.chartThresholds
+  return { ...ledger, chartColors, chartThresholds, budgetVersion: 4, rentBudget, otherBudget: ledger.otherBudget ?? 1000, budgets, expenses: ledger.expenses ?? [] }
 }
 
 /** Migrates the original one-time `paid` flag into the current month's payment. */

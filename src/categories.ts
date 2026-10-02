@@ -11,7 +11,14 @@ export const defaultCategoryGroups: CategoryGroup[] = [
   { name: '三餐', icon:'🍽️', children: ['早餐', '午餐', '晚餐', '饮料', '夜宵', '其他'] },
   { name: '居住', icon:'🏠', children: ['房租', '水电', '物业', '其他'] },
   { name: '日常', icon:'🛒', children: ['日用品', '购物', '交通', '订阅', '其他'] },
+  { name:'出行',icon:'🚕',children:['公交地铁','打车','加油','停车','旅行','其他'] },
+  { name:'健康',icon:'💊',children:['药品','看病','健身','其他'] },
+  { name:'娱乐',icon:'🎮',children:['电影','游戏','聚会','其他'] },
+  { name:'学习',icon:'📚',children:['书籍','课程','文具','其他'] },
+  { name:'人情',icon:'🎁',children:['礼物','红包','请客','其他'] },
 ]
+export const commonCategoryIcons:Record<string,string>={'早餐':'🥐','午餐':'🍱','晚餐':'🍚','夜宵':'🍜','宵夜':'🍜','饮料':'🥤','咖啡':'☕','水果':'🍎','零食':'🍪','酒':'🍺','房租':'🏠','水电':'💡','物业':'🏢','日用品':'🧻','购物':'🛍️','交通':'🚌','订阅':'📱','公交地铁':'🚇','打车':'🚕','加油':'⛽','停车':'🅿️','旅行':'🧳','药品':'💊','看病':'🏥','健身':'🏃','电影':'🎬','游戏':'🎮','聚会':'🎉','书籍':'📚','课程':'🎓','文具':'✏️','礼物':'🎁','红包':'🧧','请客':'🍻','其他':'✨'}
+export const childIcon=(group:CategoryGroup,name:string)=>group.childIcons?.[name]||commonCategoryIcons[name]||'✨'
 
 export function categoryGroups(ledger: Ledger): CategoryGroup[] {
   if (ledger.categoryGroups) return ledger.categoryGroups.map(group=>({...group,children:[...group.children]}))

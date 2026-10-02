@@ -14,14 +14,14 @@ export type Expense = {
   category: string
 }
 export type Income = { id: string; title: string; amount: number; date: string; time?: string; category?: string }
-export type CategoryGroup = { name: string; children: string[]; icon?: string }
+export type CategoryGroup = { name: string; children: string[]; icon?: string; childIcons?: Record<string,string> }
 export type BudgetAllocation = { id: string; name: string; amount: number; kind: 'meal' | 'rent' | 'custom' }
 export type TrashKind = 'transaction' | 'income' | 'wish' | 'budget' | 'categoryGroup' | 'categoryChild' | 'book' | 'reset'
 export type TrashEntry = { id: string; bookId: string; kind: TrashKind; label: string; deletedAt: string; data: unknown }
 export type LedgerBook = { id: string; name: string; ledger: Ledger }
 export type LedgerWorkspace = { version: 1; activeBookId: string; books: LedgerBook[]; trash: TrashEntry[] }
 export type MealTimes = { breakfast: string; lunch: string; dinner: string; supper: string }
-export type ChartThresholds = { nearPercent: number; severePercent: number }
-export type ChartColors = { within: string; near: string; over: string; severe: string }
+export type ChartThresholds = { nearPercent: number; moderatePercent?: number; severePercent: number }
+export type ChartColors = { within: string; near: string; over: string; moderate?: string; severe: string }
 export type DisplayPreferences = { groupThousands: boolean; font: 'system' | 'rounded' | 'serif' }
 export type Ledger = { monthlyBudget: number; mealBudget: number; rentBudget?: number; otherBudget?: number; budgets?: BudgetAllocation[]; budgetVersion?: number; mode: 'dynamic' | 'fixed'; fixedDailyAmount?: number; mealTimes?: MealTimes; spendingPeriod?: 'week' | 'seven' | 'month'; homeBalanceMode?: 'minimal' | 'detail'; homeFirstCard?: 'balance' | 'chart'; chartThresholds?: ChartThresholds; chartColors?: ChartColors; chartSquareOpacity?: number; billingStartDay?: number; categories?: string[]; categoryGroups?: CategoryGroup[]; transactions: Transaction[]; incomes?: Income[]; wishes: Wish[]; expenses: Expense[]; display?: DisplayPreferences; updatedAt?: string }

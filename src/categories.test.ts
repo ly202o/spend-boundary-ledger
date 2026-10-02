@@ -16,7 +16,7 @@ test('旧账本房租迁移为独立预算，不再新增固定支出', () => {
 
 test('导入的自定义大类和小类在记账选择中可见', () => {
   const groups=categoryGroups({...ledger,transactions:[{id:'1',title:'地铁',amount:3,category:'地铁',categoryGroup:'出行',date:'2026-09-20'}]})
-  assert.deepEqual(groups.find(group=>group.name==='出行')?.children,['地铁','其他'])
+  assert.ok(groups.find(group=>group.name==='出行')?.children.includes('地铁'))
   assert.equal(groupForCategory(groups,'地铁'),'出行')
 })
 
