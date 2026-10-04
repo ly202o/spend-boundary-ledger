@@ -1,6 +1,6 @@
 import type { SpendingCategory, Transaction } from './types'
 
-export const spendingLabels:Record<SpendingCategory,string>={meal:'三餐支出',night:'夜宵支出',snack:'零食饮品',other:'其他支出',all:'全部支出'}
+export const spendingLabels:Record<SpendingCategory,string>={meal:'三餐支出',night:'夜宵支出',snack:'零食饮品',other:'三餐外支出',all:'全部支出'}
 const snacks=new Set(['饮料','奶茶','咖啡','可乐','雪碧','零食','小吃','水果','酒','甜品','冰淇淋'])
 export function diningKind(item:Transaction):'meal'|'night'|'snack'|null {
   if(item.diningKind)return item.diningKind

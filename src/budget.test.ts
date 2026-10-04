@@ -4,6 +4,21 @@ import { budgetSummary, calc, isOtherTransaction, withBudgets } from './budget.t
 import type { Ledger } from './types'
 const base: Ledger = {monthlyBudget:4000,mealBudget:1500,rentBudget:1500,otherBudget:1000,mode:'dynamic',transactions:[],wishes:[],expenses:[]}
 const date = new Date(2026,8,1,12)
+
+test('三餐外统计包含夜宵、零食、房租及不扣预算的支出，不重复扣预留',()=>{
+ const transactions:Ledger['transactions']=[
+  {id:'m',title:'午餐',category:'午餐',source:'meal',amount:20,date:'2026-09-17'},
+  {id:'n',title:'夜宵',category:'夜宵',amount:30,date:'2026-09-17'},
+  {id:'s',title:'奶茶',category:'奶茶',amount:15,date:'2026-09-17'},
+  {id:'r',title:'房租',category:'房租',amount:1500,date:'2026-09-17'},
+  {id:'f',title:'礼物',category:'其他',amount:50,budgetImpact:false,date:'2026-09-17'},
+  {id:'old',title:'旧支出',category:'其他',amount:999,date:'2026-08-01'}
+ ]
+ const result=calc({...base,transactions},new Date(2026,8,17,12),'2026-10')
+ assert.equal(result.nonMealSpent,1595)
+ assert.equal(result.mealSpent,20)
+ assert.equal(result.available,955)
+})
 test('房租只由预算预留，旧固定支出不重复扣款',()=>{
  assert.equal(calc(base,date).available,1000)
  const paid: Ledger={...base,expenses:[{id:'rent',title:'房租',amount:1500,active:true,paid:true,category:'居住'}],transactions:[{id:'1',title:'房租',amount:1500,category:'居住',date:'2026-09-01',source:'fixed'}]}

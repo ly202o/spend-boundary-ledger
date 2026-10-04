@@ -44,6 +44,8 @@ export function calc(l: Ledger, date = new Date(), selectedMonth = billingMonthF
   // allocation is now managed only by the editable rent budget.
   const allocatedIds = new Set(budgets.allocations.filter(item=>item.kind!=='meal').map(item=>item.id))
   const otherSpent = sum(transactions.filter(item=>isOtherTransaction(item,allocatedIds)))
+  // Display all non-meal expenses independently of the flexible-budget deduction.
+  const nonMealSpent = sum(l.transactions.filter(item=>item.date>=range.startKey&&item.date<=range.endKey&&diningKind(item)!=='meal'))
   const flexibleBase = cents(l.monthlyBudget)-sum(budgets.allocations)
-  return {spent:spent/100,income:income/100,otherSpent:otherSpent/100,flexibleBase:flexibleBase/100,wishReserved:wishReserved/100,mealSpent:mealSpent/100,mealRemaining:mealRemaining/100,mealDaily:mealDaily/100,todayMeal:todayMeal/100,todayLeft:(mealDaily-todayMeal)/100,available:(flexibleBase-otherSpent)/100}
+  return {spent:spent/100,income:income/100,otherSpent:otherSpent/100,nonMealSpent:nonMealSpent/100,flexibleBase:flexibleBase/100,wishReserved:wishReserved/100,mealSpent:mealSpent/100,mealRemaining:mealRemaining/100,mealDaily:mealDaily/100,todayMeal:todayMeal/100,todayLeft:(mealDaily-todayMeal)/100,available:(flexibleBase-otherSpent)/100}
 }
