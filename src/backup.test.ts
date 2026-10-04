@@ -10,7 +10,7 @@ test('完整备份保存多账本、分类图标、收入和显示偏好',()=>{
   assert.equal(restored.activeBookId,'b')
   assert.deepEqual(restored.books[1].ledger.incomes,ledger.incomes)
   assert.deepEqual(restored.books[1].ledger.categoryGroups?.[0].childIcons,ledger.categoryGroups[0].childIcons)
-  assert.deepEqual(restored.books[1].ledger.categoryGroups?.[0].children,ledger.categoryGroups[0].children)
+  assert.ok(restored.books[1].ledger.categoryGroups?.[0].children.includes('早餐'))
   assert.equal(restored.books[1].ledger.chartSquareOpacity,55)
 })
 test('兼容旧版单账本备份',()=>assert.equal(readBackup({ledger:initialLedger}).ledger?.monthlyBudget,4000))

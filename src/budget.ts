@@ -30,7 +30,7 @@ export function calc(l: Ledger, date = new Date(), selectedMonth = billingMonthF
   const mealBudget = budgets.meal
   const spent = sum(transactions)
   const wishReserved = sum(l.wishes.filter(x=>x.intensity>=8&&x.source==='budget'))
-  const meals = transactions.filter(x=>diningKind(x)==='meal')
+  const meals = transactions.filter(x=>(l.foodVersion?diningKind(x)!==null:diningKind(x)==='meal'))
   const mealSpent = sum(meals)
   const todayMeal = sum(meals.filter(x=>x.date===today))
   const priorMeal = sum(meals.filter(x=>x.date<today))
@@ -43,9 +43,9 @@ export function calc(l: Ledger, date = new Date(), selectedMonth = billingMonthF
   // Legacy fixed-payment records remain visible in the ledger, but the rent
   // allocation is now managed only by the editable rent budget.
   const allocatedIds = new Set(budgets.allocations.filter(item=>item.kind!=='meal').map(item=>item.id))
-  const otherSpent = sum(transactions.filter(item=>isOtherTransaction(item,allocatedIds)))
+  const otherSpent = sum(transactions.filter(item=>(!l.foodVersion||diningKind(item)===null)&&isOtherTransaction(item,allocatedIds)))
   // Display all non-meal expenses independently of the flexible-budget deduction.
-  const nonMealSpent = sum(l.transactions.filter(item=>item.date>=range.startKey&&item.date<=range.endKey&&diningKind(item)!=='meal'))
+  const nonMealSpent = sum(l.transactions.filter(item=>item.date>=range.startKey&&item.date<=range.endKey&&(l.foodVersion?diningKind(item)===null:diningKind(item)!=='meal')))
   const flexibleBase = cents(l.monthlyBudget)-sum(budgets.allocations)
   return {spent:spent/100,income:income/100,otherSpent:otherSpent/100,nonMealSpent:nonMealSpent/100,flexibleBase:flexibleBase/100,wishReserved:wishReserved/100,mealSpent:mealSpent/100,mealRemaining:mealRemaining/100,mealDaily:mealDaily/100,todayMeal:todayMeal/100,todayLeft:(mealDaily-todayMeal)/100,available:(flexibleBase-otherSpent)/100}
 }

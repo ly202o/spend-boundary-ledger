@@ -22,7 +22,26 @@ export function normalizeLedger(ledger: Ledger): Ledger {
     for(const name of ['夜宵','零食饮品'])if(!groups.some(group=>group.name===name))groups.push(structuredClone(defaultCategoryGroups.find(group=>group.name===name)!))
     ledger={...ledger,budgets,categoryGroups:groups.map(group=>({...group,kind:group.kind||(group.name==='三餐'?'meal':group.name==='夜宵'?'night':group.name==='零食饮品'?'snack':undefined)})),diningVersion:1}
   }
-  ledger={...ledger,transactions:ledger.transactions.map(item=>{const kind=diningKind(item);if(kind==='night'||kind==='snack')return {...item,source:'general' as const,diningKind:kind,categoryGroup:ledger.categoryGroups?.find(group=>group.kind===kind)?.name||(kind==='night'?'夜宵':'零食饮品'),budgetId:diningBudgetId(kind,ledger.budgets||[])};return item})}
+  ledger={...ledger,transactions:ledger.transactions.map(item=>{const kind=diningKind(item);if(!ledger.foodVersion&&(kind==='night'||kind==='snack'))return {...item,source:'general' as const,diningKind:kind,categoryGroup:ledger.categoryGroups?.find(group=>group.kind===kind)?.name||(kind==='night'?'夜宵':'零食饮品'),budgetId:diningBudgetId(kind,ledger.budgets||[])};return item})}
+  if(ledger.foodVersion!==1){
+    const foodGroups=categoryGroups(ledger).filter(group=>!!group.kind||['三餐','夜宵','零食饮品','饮食'].includes(group.name))
+    const names=new Set(foodGroups.map(group=>group.name))
+    const children=[...new Set([...foodGroups.flatMap(group=>group.children).filter(name=>name!=='其他'),'早餐','午餐','晚餐','夜宵','奶茶','零食','饮料','咖啡','小吃','水果','甜品','其他'])]
+    const foodBudgets=(ledger.budgets||[]).filter(item=>['meal','night','snack'].includes(item.kind))
+    const foodId=foodBudgets.find(item=>item.kind==='meal')?.id||'meal'
+    const oldIds=new Set(foodBudgets.map(item=>item.id))
+    ledger={...ledger,foodVersion:1,mealBudget:foodBudgets.reduce((sum,item)=>sum+item.amount,0),
+      budgets:[{id:foodId,name:'饮食',kind:'meal',amount:foodBudgets.reduce((sum,item)=>sum+item.amount,0)},...(ledger.budgets||[]).filter(item=>!oldIds.has(item.id))],
+      categoryGroups:[{name:'饮食',kind:'meal',icon:'🍽️',children,childIcons:Object.assign({},...foodGroups.map(group=>group.childIcons||{}))},...categoryGroups(ledger).filter(group=>!names.has(group.name))],
+      transactions:ledger.transactions.map(item=>{const kind=diningKind(item);return kind||names.has(item.categoryGroup||'')?{...item,diningKind:kind||'meal',categoryGroup:'饮食',budgetId:foodId}:item}),
+      homeCards:ledger.homeCards?.map(card=>card.type==='spending'&&(!card.category||card.category==='meal')?{...card,category:'food'}:card)
+    }
+  }
+  if(ledger.foodVersion){
+    const foodGroup=ledger.categoryGroups?.find(group=>group.kind==='meal')
+    const foodId=ledger.budgets?.find(item=>item.kind==='meal')?.id
+    ledger={...ledger,transactions:ledger.transactions.map(item=>diningKind(item)?{...item,diningKind:diningKind(item)!,categoryGroup:foodGroup?.name||'饮食',budgetId:foodId}:item)}
+  }
   const rent = ledger.expenses?.find(expense => expense.id === 'rent' || expense.title === '房租')
   const rentBudget = ledger.rentBudget ?? rent?.amount ?? 1500
   const budgets = ledger.budgets ?? [{ id:'meal', name:'三餐', amount:ledger.mealBudget, kind:'meal' as const }, { id:'rent', name:'房租', amount:rentBudget, kind:'rent' as const }]

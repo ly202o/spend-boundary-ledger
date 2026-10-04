@@ -53,6 +53,8 @@ export function mealCategoryForTime(time: string, children: string[], mealTimes:
 
 export function automaticDiningSelection(time:string,groups:CategoryGroup[],configured?:MealTimes) {
   const times=configured&&validMealTimes(configured)?configured:defaultMealTimes
+  const food=groups.find(group=>group.name==='饮食'||(group.kind==='meal'&&group.children.some(name=>name==='夜宵'||name==='宵夜')))
+  if(food)return {group:food.name,category:mealCategoryForTime(time,food.children,configured)}
   const night=time>=times.supper||time<times.breakfast
   const group=groups.find(item=>item.kind===(night?'night':'meal')||item.name===(night?'夜宵':'三餐'))||groups[0]
   return {group:group.name,category:night?(group.children.includes('夜宵')?'夜宵':group.children[0]):mealCategoryForTime(time,group.children,times)}
