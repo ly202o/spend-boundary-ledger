@@ -21,7 +21,7 @@ test('导入的自定义大类和小类在记账选择中可见', () => {
 })
 
 test('新记账按时间选择三餐小类，手动分类可继续覆盖', () => {
-  const choices=categoryGroups(ledger)[0].children
+  const choices=[...categoryGroups(ledger)[0].children,'夜宵']
   assert.equal(mealCategoryForTime('10:59',choices),'早餐')
   assert.equal(mealCategoryForTime('11:00',choices),'午餐')
   assert.equal(mealCategoryForTime('15:59',choices),'午餐')
@@ -33,7 +33,7 @@ test('新记账按时间选择三餐小类，手动分类可继续覆盖', () =>
 })
 
 test('餐别开始时间可修改，凌晨仍归入前一晚的夜宵', () => {
-  const choices=categoryGroups(ledger)[0].children
+  const choices=[...categoryGroups(ledger)[0].children,'夜宵']
   const times={breakfast:'06:30',lunch:'11:30',dinner:'18:00',supper:'23:00'}
   assert.equal(validMealTimes(times),true)
   assert.equal(mealCategoryForTime('05:59',choices,times),'夜宵')

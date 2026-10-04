@@ -1,7 +1,8 @@
 import type { BudgetAllocation, Ledger, Transaction } from './types'
+import { diningKind } from './dining.ts'
 import { billingMonthForDate, billingRange, dayKey } from './cycle.ts'
 
-export const isOtherTransaction = (item:Transaction, allocatedBudgetIds: Set<string> = new Set()) => item.budgetImpact!==false && item.source!=='meal' && item.source!=='fixed' && !allocatedBudgetIds.has(item.budgetId || '') && item.category!=='房租' && !(item.category==='居住'&&item.title==='房租')
+export const isOtherTransaction = (item:Transaction, allocatedBudgetIds: Set<string> = new Set()) => item.budgetImpact!==false && diningKind(item)!=='meal' && item.source!=='fixed' && !allocatedBudgetIds.has(item.budgetId || '') && item.category!=='房租' && !(item.category==='居住'&&item.title==='房租')
 
 export function budgetSummary(l: Ledger) {
   const allocations = l.budgets ?? [{ id:'meal', name:'三餐', amount:l.mealBudget, kind:'meal' as const }, { id:'rent', name:'房租', amount:l.rentBudget??1500, kind:'rent' as const }]
@@ -29,7 +30,7 @@ export function calc(l: Ledger, date = new Date(), selectedMonth = billingMonthF
   const mealBudget = budgets.meal
   const spent = sum(transactions)
   const wishReserved = sum(l.wishes.filter(x=>x.intensity>=8&&x.source==='budget'))
-  const meals = transactions.filter(x=>x.source==='meal')
+  const meals = transactions.filter(x=>diningKind(x)==='meal')
   const mealSpent = sum(meals)
   const todayMeal = sum(meals.filter(x=>x.date===today))
   const priorMeal = sum(meals.filter(x=>x.date<today))

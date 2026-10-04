@@ -8,7 +8,9 @@ export function validMealTimes(times: MealTimes): boolean {
 }
 
 export const defaultCategoryGroups: CategoryGroup[] = [
-  { name: '三餐', icon:'🍽️', children: ['早餐', '午餐', '晚餐', '饮料', '夜宵', '其他'] },
+  { name: '三餐', kind:'meal', icon:'🍽️', children: ['早餐', '午餐', '晚餐'] },
+  {name:'夜宵',kind:'night',icon:'🍜',children:['夜宵','烧烤','外卖','其他']},
+  {name:'零食饮品',kind:'snack',icon:'🥤',children:['零食','奶茶','饮料','咖啡','小吃','水果','甜品','其他']},
   { name: '居住', icon:'🏠', children: ['房租', '水电', '物业', '其他'] },
   { name: '日常', icon:'🛒', children: ['日用品', '购物', '交通', '订阅', '其他'] },
   { name:'出行',icon:'🚕',children:['公交地铁','打车','加油','停车','旅行','其他'] },
@@ -46,5 +48,12 @@ export function mealCategoryForTime(time: string, children: string[], mealTimes:
     : current < minutes(starts.lunch) ? '早餐'
     : current < minutes(starts.dinner) ? '午餐' : '晚餐'
   const choices = preferred === '夜宵' ? ['宵夜', '夜宵'] : [preferred]
-  return choices.find(name => children.includes(name)) || children[0] || '其他'
+  return choices.find(name => children.includes(name)) || (preferred==='夜宵'&&children.includes('晚餐')?'晚餐':children[0]) || '其他'
+}
+
+export function automaticDiningSelection(time:string,groups:CategoryGroup[],configured?:MealTimes) {
+  const times=configured&&validMealTimes(configured)?configured:defaultMealTimes
+  const night=time>=times.supper||time<times.breakfast
+  const group=groups.find(item=>item.kind===(night?'night':'meal')||item.name===(night?'夜宵':'三餐'))||groups[0]
+  return {group:group.name,category:night?(group.children.includes('夜宵')?'夜宵':group.children[0]):mealCategoryForTime(time,group.children,times)}
 }
