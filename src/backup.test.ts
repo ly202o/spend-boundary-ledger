@@ -15,6 +15,12 @@ test('完整备份保存多账本、分类图标、收入和显示偏好',()=>{
 })
 test('兼容旧版单账本备份',()=>assert.equal(readBackup({ledger:initialLedger}).ledger?.monthlyBudget,4000))
 
+test('完整备份保存休息卡片打卡历史和合并倒计时模式',()=>{
+ const rest={title:'休息时间',payday:16,eventName:'假期',eventDate:'2026-10-20',dailyWage:380,workStart:'09:30',workEnd:'19:00',countdownMode:'event' as const,punches:{'2026-10-12':{start:'09:45',end:'18:45'}}}
+ const ledger={...initialLedger,homeCards:[{id:'rest',type:'rest' as const,rest}]}
+ assert.deepEqual(readBackup(JSON.parse(JSON.stringify({ledger}))).ledger!.homeCards?.[0].rest,rest)
+})
+
 test('完整和单账本备份均还原所有显示及账本设置',()=>{
  const ledger={...initialLedger,mode:'fixed' as const,fixedDailyAmount:66,billingStartDay:12,mealTimes:{breakfast:'06:00',lunch:'12:00',dinner:'18:00',supper:'23:00'},display:{groupThousands:true,font:'serif' as const},homeCards:[{id:'c',type:'spending' as const,category:'night' as const,period:'month' as const}],chartColors:{within:'#112233',near:'#223344',over:'#334455',moderate:'#445566',severe:'#556677'},chartThresholds:{nearPercent:75,moderatePercent:120,severePercent:150},chartSquareOpacity:42}
  const workspace={version:1,activeBookId:'a',books:[{id:'a',name:'日常',ledger}],trash:[]}
