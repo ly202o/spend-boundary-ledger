@@ -1,4 +1,6 @@
 import { useState } from 'react'
+import { appVersion } from './release'
+import changelog from '../CHANGELOG.md?raw'
 
 declare const __BUILD_VERSION__: string
 
@@ -18,7 +20,7 @@ export default function AppUpdate() {
       const data=await response.json()
       if(typeof data.version!=='string'||!Number.isFinite(Date.parse(data.version)))throw new Error('invalid')
       if(data.version===__BUILD_VERSION__)setNotice('已是最新版本。')
-      else {setVersion(data.version);setNotice('发现新版本，点击更新即可。')}
+      else {setVersion(data.version);setNotice(`发现新版本${typeof data.appVersion==='string'?' v'+data.appVersion:''}，点击更新即可。`)}
     }catch{setNotice('暂时无法检查更新，请确认网络连接后重试。')}
     finally{window.clearTimeout(timeout);setChecking(false)}
   }
@@ -27,5 +29,5 @@ export default function AppUpdate() {
     url.searchParams.set('v',version||String(Date.now()))
     window.location.replace(url.toString())
   }
-  return <section className="display-card app-update"><b>应用更新</b><small>当前版本：{__BUILD_VERSION__.replace('T',' ').slice(0,19)} UTC</small><small>直接在桌面模式更新，无需重新添加图标。只重新加载应用，保留本地账目和设置。</small><div className="transfer-actions"><button type="button" disabled={checking} onClick={()=>void check()}>{checking?'检查中…':'检查更新'}</button><button type="button" disabled={checking} onClick={reload}>{version?'立即更新':'重新加载'}</button></div>{notice&&<small role="status">{notice}</small>}</section>
+  return <><section className="display-card app-update"><b>消费边界 v{appVersion}</b><small>构建时间：{new Date(__BUILD_VERSION__).toLocaleString('zh-CN',{timeZone:'Asia/Shanghai',hour12:false})}</small><small>直接在桌面模式更新，无需重新添加图标。只重新加载应用，保留本地账目和设置。</small><div className="transfer-actions"><button type="button" disabled={checking} onClick={()=>void check()}>{checking?'检查中…':'检查更新'}</button><button type="button" disabled={checking} onClick={reload}>{version?'立即更新':'重新加载'}</button></div>{notice&&<small role="status">{notice}</small>}</section><section className="display-card release-notes"><b>更新日志</b>{changelog.split(/\r?\n/).filter(line=>line.startsWith('## ')||line.startsWith('### ')||line.startsWith('- ')).map((line,index)=>line.startsWith('## ')?<h2 key={index}>{line.slice(3)}</h2>:line.startsWith('### ')?<h3 key={index}>{line.slice(4)}</h3>:<p key={index}>{line.slice(2)}</p>)}</section></>
 }

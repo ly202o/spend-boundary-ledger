@@ -30,7 +30,7 @@ const monthDate=(month:string,startDay=17)=>month===billingMonthForDate(new Date
 const dateKey=(date:Date)=>`${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`
 const uid = () => crypto.randomUUID()
 const validAmount = (value: string) => Number.isFinite(+value) && +value > 0 && +value <= 100000000 && /^\d+(\.\d{1,2})?$/.test(value)
-type MoreView = 'menu'|'books'|'income'|'wishes'|'budgets'|'book-mode'|'categories'|'trash'|'settings'|'home-cards'
+type MoreView = 'menu'|'books'|'income'|'wishes'|'budgets'|'book-mode'|'categories'|'trash'|'settings'|'home-cards'|'updates'
 
 export default function App() {
   const [workspace,setWorkspace] = useState<LedgerWorkspace>(loadWorkspace)
@@ -132,6 +132,7 @@ export default function App() {
       {tab === 'records' && <Records selectedDate={recordDate} onClearDate={()=>setRecordDate(null)} items={recordDate?ledger.transactions:monthTransactions} onDelete={deleteTransaction} onEdit={setEditingTransaction} />}
       {tab === 'more' && (moreView==='menu'?<MoreMenu onSelect={setMoreView}/>:<>
         <button type="button" className="more-back" onClick={()=>setMoreView('menu')}>‹ 更多</button>
+        {moreView==='updates'&&<Page title="更新"><div className="panel settings"><AppUpdate/></div></Page>}
         {moreView==='home-cards'&&<HomeCardSettings ledger={ledger} onDisplayChange={changes=>update({...ledger,...changes})}/>}
         {moreView==='books'&&<BooksPage workspace={workspace} onSwitch={switchBook} onCreate={createBook} onRename={renameBook} onDelete={deleteBook}/>}
         {moreView==='wishes'&&<Wishes ledger={ledger} stats={stats} onAdd={() => setModal('wish')} onBuy={buyWish} onEdit={wish=>setEditingWish(wish)} onDelete={wish=>trashItem('wish',wish.title,wish,{...ledger,wishes:ledger.wishes.filter(item=>item.id!==wish.id)})}/>}
@@ -176,7 +177,7 @@ function MonthPicker({selectedMonth,label,startDay,onChange}:{selectedMonth:stri
   return <div className="month-picker-wrap"><button type="button" className="month-picker" aria-expanded={open} onClick={()=>{setYear(+selectedMonth.slice(0,4));setOpen(!open)}}><CalendarDays size={19}/><span>{label}</span></button>{open&&<div className="month-calendar"><div className="month-calendar-head"><button type="button" onClick={()=>setYear(year-1)}>‹</button><b>{year} 年</b><button type="button" onClick={()=>setYear(year+1)}>›</button></div><div className="month-grid">{Array.from({length:12},(_,index)=>{const month=`${year}-${String(index+1).padStart(2,'0')}`;return <button type="button" key={month} className={month===selectedMonth?'active':''} onClick={()=>{onChange(month);setOpen(false)}}>{index+1} 月</button>})}</div><small>当前账期 {range.startKey} 至 {range.endKey}</small></div>}</div>
 }
 function MoreMenu({onSelect}:{onSelect:(view:MoreView)=>void}) {
-  const items:[MoreView,string,string][]=[['home-cards','首页卡片','添加、排序和移除首页卡片'],['books','账本管理','切换、创建和管理账本'],['budgets','预算管理','预留额度与自动计算的剩余预算'],['income','收入记录','查看本月收入与记录明细'],['wishes','愿望单','管理想买的东西'],['book-mode','账本规则','日额模式与月账期'],['categories','分类管理','管理大类、小类与图标'],['trash','回收站','30 天内可恢复的项目'],['settings','偏好与数据','导入导出与显示']]
+  const items:[MoreView,string,string][]=[['home-cards','首页卡片','添加、排序和移除首页卡片'],['books','账本管理','切换、创建和管理账本'],['budgets','预算管理','预留额度与自动计算的剩余预算'],['income','收入记录','查看本月收入与记录明细'],['wishes','愿望单','管理想买的东西'],['book-mode','账本规则','日额模式与月账期'],['categories','分类管理','管理大类、小类与图标'],['trash','回收站','30 天内可恢复的项目'],['settings','偏好与数据','导入导出与显示'],['updates','更新','版本信息、检查更新与更新日志']]
   return <Page title="更多"><div className="more-grid">{items.map(([id,title,detail])=><button type="button" key={id} onClick={()=>onSelect(id)}><b>{title}</b><small>{detail}</small><span>›</span></button>)}</div></Page>
 }
 function BooksPage({workspace,onSwitch,onCreate,onRename,onDelete}:{workspace:LedgerWorkspace;onSwitch:(id:string)=>void;onCreate:(name:string,copy:boolean,seed?:Ledger)=>void;onRename:(id:string,name:string)=>void;onDelete:(id:string)=>void}) {
@@ -371,7 +372,6 @@ function SettingsPage({workspace,onRestoreWorkspace,ledger,update,onReset,onExpo
   const [confirmingReset,setConfirmingReset] = useState(false)
   const display=ledger.display||defaultDisplay
   return <Page title="偏好与数据"><div className="panel settings">
-    <AppUpdate/>
     <section className="display-card"><b>显示设置</b><label className="switch-row"><span>金额使用千位分隔符<small>{display.groupThousands?'显示为 1,000.00':'显示为 1000.00'}</small></span><input type="checkbox" checked={display.groupThousands} onChange={e=>update({...ledger,display:{...display,groupThousands:e.target.checked}})}/></label><label>界面字体<select value={display.font} onChange={e=>update({...ledger,display:{...display,font:e.target.value as DisplayPreferences['font']}})}><option value="system">系统默认</option><option value="rounded">圆润字体</option><option value="serif">宋体</option></select></label></section>
     <ChartThresholdSettings thresholds={ledger.chartThresholds} colors={ledger.chartColors} squareOpacity={ledger.chartSquareOpacity} onSave={chartThresholds=>update({...ledger,chartThresholds})} onSaveColors={chartColors=>update({...ledger,chartColors})} onSaveOpacity={chartSquareOpacity=>update({...ledger,chartSquareOpacity})}/>
     <ImportExportSettings ledger={ledger} update={update} workspace={workspace} onRestoreWorkspace={onRestoreWorkspace}/>

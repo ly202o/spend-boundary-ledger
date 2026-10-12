@@ -1,5 +1,6 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
+import { appVersion } from './src/release'
 
 const buildVersion = new Date().toISOString()
 export default defineConfig({
@@ -8,7 +9,7 @@ export default defineConfig({
   plugins: [react(), {
     name: 'app-version',
     generateBundle() {
-      this.emitFile({type:'asset',fileName:'version.json',source:JSON.stringify({version:buildVersion})})
+      this.emitFile({type:'asset',fileName:'version.json',source:JSON.stringify({version:buildVersion,appVersion})})
     },
   }],
 })
