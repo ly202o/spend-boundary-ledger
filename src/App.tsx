@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect, useRef, useMemo, useState } from 'react'
 import { CalendarDays, Check, Download, Home, LayoutGrid, Pencil, Plus, ReceiptText, RotateCcw, Sparkles, Trash2, Upload, WalletCards, X } from 'lucide-react'
 import { diningKind, diningBudgetId, spendingLabels } from './dining'
-import AppUpdate from './AppUpdate'
+import About from './About'
 import { filterTransactions } from './record-filter'
 import { readBackup } from './backup'
 import { initialLedger, loadWorkspace, normalizeLedger, saveWorkspace } from './store'
@@ -132,7 +132,7 @@ export default function App() {
       {tab === 'records' && <Records selectedDate={recordDate} onClearDate={()=>setRecordDate(null)} items={recordDate?ledger.transactions:monthTransactions} onDelete={deleteTransaction} onEdit={setEditingTransaction} />}
       {tab === 'more' && (moreView==='menu'?<MoreMenu onSelect={setMoreView}/>:<>
         <button type="button" className="more-back" onClick={()=>setMoreView('menu')}>‹ 更多</button>
-        {moreView==='updates'&&<Page title="更新"><div className="panel settings"><AppUpdate/></div></Page>}
+        {moreView==='updates'&&<Page title="关于"><About/></Page>}
         {moreView==='home-cards'&&<HomeCardSettings ledger={ledger} onDisplayChange={changes=>update({...ledger,...changes})}/>}
         {moreView==='books'&&<BooksPage workspace={workspace} onSwitch={switchBook} onCreate={createBook} onRename={renameBook} onDelete={deleteBook}/>}
         {moreView==='wishes'&&<Wishes ledger={ledger} stats={stats} onAdd={() => setModal('wish')} onBuy={buyWish} onEdit={wish=>setEditingWish(wish)} onDelete={wish=>trashItem('wish',wish.title,wish,{...ledger,wishes:ledger.wishes.filter(item=>item.id!==wish.id)})}/>}
@@ -177,7 +177,7 @@ function MonthPicker({selectedMonth,label,startDay,onChange}:{selectedMonth:stri
   return <div className="month-picker-wrap"><button type="button" className="month-picker" aria-expanded={open} onClick={()=>{setYear(+selectedMonth.slice(0,4));setOpen(!open)}}><CalendarDays size={19}/><span>{label}</span></button>{open&&<div className="month-calendar"><div className="month-calendar-head"><button type="button" onClick={()=>setYear(year-1)}>‹</button><b>{year} 年</b><button type="button" onClick={()=>setYear(year+1)}>›</button></div><div className="month-grid">{Array.from({length:12},(_,index)=>{const month=`${year}-${String(index+1).padStart(2,'0')}`;return <button type="button" key={month} className={month===selectedMonth?'active':''} onClick={()=>{onChange(month);setOpen(false)}}>{index+1} 月</button>})}</div><small>当前账期 {range.startKey} 至 {range.endKey}</small></div>}</div>
 }
 function MoreMenu({onSelect}:{onSelect:(view:MoreView)=>void}) {
-  const items:[MoreView,string,string][]=[['home-cards','首页卡片','添加、排序和移除首页卡片'],['books','账本管理','切换、创建和管理账本'],['budgets','预算管理','预留额度与自动计算的剩余预算'],['income','收入记录','查看本月收入与记录明细'],['wishes','愿望单','管理想买的东西'],['book-mode','账本规则','日额模式与月账期'],['categories','分类管理','管理大类、小类与图标'],['trash','回收站','30 天内可恢复的项目'],['settings','偏好与数据','导入导出与显示'],['updates','更新','版本信息、检查更新与更新日志']]
+  const items:[MoreView,string,string][]=[['home-cards','首页卡片','添加、排序和移除首页卡片'],['books','账本管理','切换、创建和管理账本'],['budgets','预算管理','预留额度与自动计算的剩余预算'],['income','收入记录','查看本月收入与记录明细'],['wishes','愿望单','管理想买的东西'],['book-mode','账本规则','日额模式与月账期'],['categories','分类管理','管理大类、小类与图标'],['trash','回收站','30 天内可恢复的项目'],['settings','偏好与数据','导入导出与显示'],['updates','关于','项目介绍、功能概览与版本更新']]
   return <Page title="更多"><div className="more-grid">{items.map(([id,title,detail])=><button type="button" key={id} onClick={()=>onSelect(id)}><b>{title}</b><small>{detail}</small><span>›</span></button>)}</div></Page>
 }
 function BooksPage({workspace,onSwitch,onCreate,onRename,onDelete}:{workspace:LedgerWorkspace;onSwitch:(id:string)=>void;onCreate:(name:string,copy:boolean,seed?:Ledger)=>void;onRename:(id:string,name:string)=>void;onDelete:(id:string)=>void}) {
