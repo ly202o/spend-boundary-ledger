@@ -1,4 +1,5 @@
 import { createContext, useContext, useEffect, useRef, useMemo, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { CalendarDays, Check, Download, Home, LayoutGrid, Pencil, Plus, ReceiptText, RotateCcw, Sparkles, Trash2, Upload, WalletCards, X } from 'lucide-react'
 import { diningKind, diningBudgetId, spendingLabels } from './dining'
 import About from './About'
@@ -473,7 +474,7 @@ function Modal({title,children,close,autoFocus=true}:{title:string;children:Reac
     const prior = document.activeElement as HTMLElement | null
     const overflow = document.body.style.overflow
     document.body.style.overflow = 'hidden'
-    if(autoFocus)ref.current?.querySelector<HTMLInputElement>('input')?.focus()
+    if(autoFocus&&!window.matchMedia('(pointer: coarse)').matches)ref.current?.querySelector<HTMLInputElement>('input')?.focus({preventScroll:true})
     const key = (e:KeyboardEvent)=>{
       if(e.key==='Escape') closeRef.current()
       if(e.key==='Tab'){
@@ -486,7 +487,7 @@ function Modal({title,children,close,autoFocus=true}:{title:string;children:Reac
     document.addEventListener('keydown',key)
     return ()=>{document.body.style.overflow=overflow;document.removeEventListener('keydown',key);prior?.focus()}
   },[])
-  return <div className="shade" onClick={e=>{if(e.target===e.currentTarget)close()}}><form ref={ref} role="dialog" aria-modal="true" aria-label={title} className="modal" onSubmit={e=>e.preventDefault()}><button type="button" aria-label="关闭弹窗" className="close" onClick={close}><X/></button><h2>{title}</h2>{children}</form></div>
+  return createPortal(<div className="shade" onClick={e=>{if(e.target===e.currentTarget)close()}}><form ref={ref} role="dialog" aria-modal="true" aria-label={title} className="modal" onSubmit={e=>e.preventDefault()}><button type="button" aria-label="关闭弹窗" className="close" onClick={close}><X/></button><h2>{title}</h2>{children}</form></div>,document.body)
 }
 function TransactionForm({close,save,initial,groups,budgets,mealTimes}:{close:()=>void;save:(x:Transaction)=>void;initial?:Transaction;groups:CategoryGroup[];budgets:BudgetAllocation[];mealTimes?:MealTimes}) {
   const startingTime=initial?.time||currentTime()
