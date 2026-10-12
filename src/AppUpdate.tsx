@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { appVersion } from './release'
-import changelog from '../CHANGELOG.md?raw'
+import ReleaseNotes from './ReleaseNotes'
 
 declare const __BUILD_VERSION__: string
 
@@ -29,5 +29,5 @@ export default function AppUpdate() {
     url.searchParams.set('v',version||String(Date.now()))
     window.location.replace(url.toString())
   }
-  return <><section className="display-card app-update"><b>消费边界 v{appVersion}</b><small>构建时间：{new Date(__BUILD_VERSION__).toLocaleString('zh-CN',{timeZone:'Asia/Shanghai',hour12:false})}</small><small>直接在桌面模式更新，无需重新添加图标。只重新加载应用，保留本地账目和设置。</small><div className="transfer-actions"><button type="button" disabled={checking} onClick={()=>void check()}>{checking?'检查中…':'检查更新'}</button><button type="button" disabled={checking} onClick={reload}>{version?'立即更新':'重新加载'}</button></div>{notice&&<small role="status">{notice}</small>}</section><section className="display-card release-notes"><b>更新日志</b>{changelog.split(/\r?\n/).filter(line=>line.startsWith('## ')||line.startsWith('### ')||line.startsWith('- ')).map((line,index)=>line.startsWith('## ')?<h2 key={index}>{line.slice(3)}</h2>:line.startsWith('### ')?<h3 key={index}>{line.slice(4)}</h3>:<p key={index}>{line.slice(2)}</p>)}</section></>
+  return <><section className="display-card app-update"><b>消费边界 v{appVersion}</b><small>构建时间：{new Date(__BUILD_VERSION__).toLocaleString('zh-CN',{timeZone:'Asia/Shanghai',hour12:false})}</small><small>直接在桌面模式更新，无需重新添加图标。只重新加载应用，保留本地账目和设置。</small><div className="transfer-actions"><button type="button" disabled={checking} onClick={()=>void check()}>{checking?'检查中…':'检查更新'}</button><button type="button" disabled={checking} onClick={reload}>{version?'立即更新':'重新加载'}</button></div>{notice&&<small role="status">{notice}</small>}</section><ReleaseNotes/></>
 }
