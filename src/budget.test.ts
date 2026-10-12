@@ -5,6 +5,17 @@ import type { Ledger } from './types'
 const base: Ledger = {monthlyBudget:4000,mealBudget:1500,rentBudget:1500,otherBudget:1000,mode:'dynamic',transactions:[],wishes:[],expenses:[]}
 const date = new Date(2026,8,1,12)
 
+test('动态均摊今天不再支出的明日日额按实际剩余分摊',()=>{
+ const ledger:Ledger={...base,mealBudget:1800,budgets:[{id:'meal',name:'饮食',kind:'meal',amount:1800}],foodVersion:1,transactions:[{id:'prior',title:'饮食',category:'午餐',source:'meal',date:'2026-10-11',amount:1615.07},{id:'today',title:'饮食',category:'午餐',source:'meal',date:'2026-10-12',amount:16}]}
+ const result=calc(ledger,new Date(2026,9,12,19,25),'2026-10')
+ assert.equal(result.mealRemaining,168.93)
+ assert.ok(Math.abs(result.mealDaily-184.93/5)<0.000001)
+ assert.equal(result.nextMealDaily,168.93/4)
+ assert.equal(calc({...ledger,mode:'fixed'},new Date(2026,9,12,19,25),'2026-10').nextMealDaily,null)
+ assert.equal(calc(ledger,new Date(2026,9,16,12),'2026-10').nextMealDaily,null)
+ assert.equal(calc({...ledger,transactions:[...ledger.transactions,{id:'more',title:'饮料',category:'饮料',amount:10,date:'2026-10-12'}]},new Date(2026,9,12,19,25),'2026-10').nextMealDaily,158.93/4)
+})
+
 test('三餐外统计包含夜宵、零食、房租及不扣预算的支出，不重复扣预留',()=>{
  const transactions:Ledger['transactions']=[
   {id:'m',title:'午餐',category:'午餐',source:'meal',amount:20,date:'2026-09-17'},

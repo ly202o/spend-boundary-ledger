@@ -3,6 +3,15 @@ import { billingMonthForDate, billingRange } from './cycle.ts'
 
 export type SpendingPeriod = 'week' | 'seven' | 'month'
 
+/** A week chart covers all seven displayed days, not just days with expenses. */
+export function crossesBillingPeriod(period:SpendingPeriod,date:Date,startDay=17,month=billingMonthForDate(date,startDay)) {
+  if(period==='month')return false
+  const range=spendingPeriodRange(period,date,startDay,month)
+  const end=period==='week'?addDays(range.start,6):range.end
+  const billing=billingRange(month,startDay)
+  return range.startKey<billing.startKey||key(end)>billing.endKey
+}
+
 const localDay = (date: Date) => new Date(date.getFullYear(), date.getMonth(), date.getDate(), 12)
 const addDays = (date: Date, days: number) => new Date(date.getFullYear(), date.getMonth(), date.getDate() + days, 12)
 const key = (date: Date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
