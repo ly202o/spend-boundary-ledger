@@ -1,6 +1,13 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { defaultRest, restStats, workSummary, punchMinutes, restSettings } from './rest.ts'
+test('月薪按月份自然日均摊并跟随打卡进度，覆盖旧日薪',()=>{
+ const settings={...defaultRest,dailyWage:999,monthlySalary:3100}
+ assert.equal(restStats(settings,new Date(2026,9,12,19)).earned,100)
+ assert.equal(restStats(settings,new Date(2026,9,12,14,15)).earned,50)
+ assert.equal(restStats({...settings,monthlySalary:2800},new Date(2026,1,12,19)).earned,100)
+ assert.equal(restStats({...settings,monthlySalary:0},new Date(2026,9,12,19)).earned,0)
+})
 test('每日工作时段当天覆盖、次日恢复默认且估算不超出收入',()=>{
  const settings={...defaultRest,dailyWage:360,todayWork:{date:'2026-10-12',start:'12:00',end:'20:00'}}
  assert.equal(restStats(settings,new Date(2026,9,12,16)).earned,180)

@@ -1,11 +1,12 @@
 import { useState } from 'react'
+import { RefreshCw } from 'lucide-react'
 import { appVersion } from './release'
 import changelog from '../CHANGELOG.md?raw'
 import { versionNotes } from './release-history'
 
 declare const __BUILD_VERSION__: string
 
-export default function AppUpdate() {
+export default function AppUpdate({compact=false}:{compact?:boolean}) {
   const [checking,setChecking]=useState(false)
   const [notice,setNotice]=useState('')
   const check=async()=>{
@@ -29,6 +30,7 @@ export default function AppUpdate() {
     }catch{setNotice('暂时无法检查更新，请确认网络连接后重试。')}
     finally{window.clearTimeout(timeout);setChecking(false)}
   }
+  if(compact)return <div className="quick-update"><button type="button" aria-label="检查更新" disabled={checking} onClick={()=>void check()}><RefreshCw size={15}/><span>{checking?'检查中…':'更新'}</span></button>{notice&&<small role="status">{notice}</small>}</div>
   return <section className="display-card app-update"><div className="update-row"><button type="button" disabled={checking} onClick={()=>void check()}>{checking?'检查中…':'检查更新'}</button><small>当前版本 v{appVersion}</small></div>{notice&&<small role="status">{notice}</small>}</section>
 }
 

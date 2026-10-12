@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom'
 import { CalendarDays, Check, Download, Home, LayoutGrid, Pencil, Plus, ReceiptText, RotateCcw, Sparkles, Trash2, Upload, WalletCards, X } from 'lucide-react'
 import { diningKind, diningBudgetId, spendingLabels } from './dining'
 import About from './About'
+import AppUpdate from './AppUpdate'
 import { RestCard, RestEditor, type RestPart } from './RestCard'
 import { filterTransactions } from './record-filter'
 import { readBackup } from './backup'
@@ -180,7 +181,7 @@ function MonthPicker({selectedMonth,label,startDay,onChange}:{selectedMonth:stri
 }
 function MoreMenu({onSelect}:{onSelect:(view:MoreView)=>void}) {
   const items:[MoreView,string,string][]=[['home-cards','首页卡片','添加、排序和移除首页卡片'],['books','账本管理','切换、创建和管理账本'],['budgets','预算管理','预留额度与自动计算的剩余预算'],['income','收入记录','查看本月收入与记录明细'],['wishes','愿望单','管理想买的东西'],['book-mode','账本规则','日额模式与月账期'],['categories','分类管理','管理大类、小类与图标'],['trash','回收站','30 天内可恢复的项目'],['settings','偏好与数据','导入导出与显示'],['updates','关于','项目介绍、功能概览与版本更新']]
-  return <Page title="更多"><div className="more-grid">{items.map(([id,title,detail])=><button type="button" key={id} onClick={()=>onSelect(id)}><b>{title}</b><small>{detail}</small><span>›</span></button>)}</div></Page>
+  return <><div className="page-title"><h1>更多</h1><AppUpdate compact/></div><div className="more-grid">{items.map(([id,title,detail])=><button type="button" key={id} onClick={()=>onSelect(id)}><b>{title}</b><small>{detail}</small><span>›</span></button>)}</div></>
 }
 function BooksPage({workspace,onSwitch,onCreate,onRename,onDelete}:{workspace:LedgerWorkspace;onSwitch:(id:string)=>void;onCreate:(name:string,copy:boolean,seed?:Ledger)=>void;onRename:(id:string,name:string)=>void;onDelete:(id:string)=>void}) {
   const [name,setName]=useState('')

@@ -33,6 +33,7 @@ export function restStats(settings:RestSettings,now=new Date()){
  const start=minutes(punch?.start||today?.start||settings.workStart)
  const duration=minutes(today?.end||settings.workEnd)-minutes(today?.start||settings.workStart)
  const end=punch?.end?minutes(punch.end):start+duration,current=now.getHours()*60+now.getMinutes()
- const earned=duration>0?settings.dailyWage*Math.min(1,Math.max(0,(Math.min(current,end)-start)/duration)):0
+ const daily=settings.monthlySalary!==undefined?settings.monthlySalary/new Date(now.getFullYear(),now.getMonth()+1,0).getDate():settings.dailyWage
+ const earned=duration>0?daily*Math.min(1,Math.max(0,(Math.min(current,end)-start)/duration)):0
  return {payDays,friday,eventDays,earned}
 }
