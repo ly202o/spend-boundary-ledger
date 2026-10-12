@@ -7,7 +7,7 @@ export function restStats(settings:RestSettings,now=new Date()){
  let next=payday(now.getMonth())
  if(stamp(next)<stamp(now))next=payday(now.getMonth()+1)
  const payDays=Math.round((stamp(next)-stamp(now))/86400000)
- const friday=(5-now.getDay()+7)%7
+ const friday=((settings.weekday??5)-now.getDay()+7)%7
  const event=/^\d{4}-\d{2}-\d{2}$/.test(settings.eventDate)?new Date(settings.eventDate+'T12:00:00'):null
  const eventDays=event&&Number.isFinite(event.getTime())?Math.round((stamp(event)-stamp(now))/86400000):null
  const minutes=(time:string)=>Number(time.slice(0,2))*60+Number(time.slice(3))
