@@ -1,5 +1,7 @@
 import { useState } from 'react'
 import { appVersion } from './release'
+import changelog from '../CHANGELOG.md?raw'
+import { versionNotes } from './release-history'
 
 declare const __BUILD_VERSION__: string
 
@@ -32,5 +34,5 @@ export default function AppUpdate() {
 }
 
 export function BuildInfo(){
-  return <section className="display-card"><b>消费边界 v{appVersion}</b><small>构建时间：{new Date(__BUILD_VERSION__).toLocaleString('zh-CN',{timeZone:'Asia/Shanghai',hour12:false})}</small><p>检查更新与重新加载只更新应用页面，不清除本地账目和设置，也不需要删除桌面图标。</p></section>
+  return <section className="display-card release-notes"><b>消费边界 v{appVersion}</b><small>构建时间：{new Date(__BUILD_VERSION__).toLocaleString('zh-CN',{timeZone:'Asia/Shanghai',hour12:false})}</small><h2>本版更新</h2>{versionNotes(changelog,appVersion).map((item,index)=><p key={index}>{item}</p>)}<h2>休息时间卡片</h2><p>包含发薪、周五、期待日倒计时及今天已赚估算。添加入口：更多 → 首页卡片 → 休息时间；滑动卡片 → 编辑卡片，可修改日期、收入和当天工作时段。</p><p>检查更新与重新加载只更新应用页面，不清除本地账目和设置，也不需要删除桌面图标。</p></section>
 }

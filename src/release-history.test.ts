@@ -1,6 +1,9 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { releaseHistory } from './release-history.ts'
+import { releaseHistory, versionNotes } from './release-history.ts'
+test('版本信息只显示当前版本对应的更新内容',()=>{
+ assert.deepEqual(versionNotes('## v1.0.5 · 2026-10-12\n- 本版\n## v1.0.4 · 2026-10-12\n- 旧版','1.0.5'),['本版'])
+})
 
 test('历史日志按年/月/日倒序分组，同一天版本合并不漏条目',()=>{
  const result=releaseHistory('## 2025-12-31\n- 旧更新\n## v1.0.0 · 2026-10-12\n- 新模块\n## 2026-09-24\n- 初版\n## v1.0.1 · 2026-10-12\n- 折叠日志\n### 旧版说明\n- 修复\n## 2026-10-04\n- 饮食预算')

@@ -1,4 +1,13 @@
 export type ReleaseDay={date:string;versions:string[];items:string[]}
+export function versionNotes(markdown:string,version:string):string[]{
+ let active=false
+ const items:string[]=[]
+ for(const line of markdown.split(/\r?\n/)){
+  if(line.startsWith('## '))active=line.match(/v\d+\.\d+\.\d+/)?.[0]===`v${version}`
+  else if(active&&line.startsWith('- '))items.push(line.slice(2))
+ }
+ return items
+}
 export type ReleaseYear={year:string;months:{month:string;days:ReleaseDay[]}[]}
 
 export function releaseHistory(markdown:string):ReleaseYear[] {
