@@ -1,6 +1,5 @@
 import { useState } from 'react'
 import { appVersion } from './release'
-import ReleaseNotes from './ReleaseNotes'
 
 declare const __BUILD_VERSION__: string
 
@@ -29,5 +28,9 @@ export default function AppUpdate() {
     url.searchParams.set('v',version||String(Date.now()))
     window.location.replace(url.toString())
   }
-  return <><section className="display-card app-update"><b>消费边界 v{appVersion}</b><small>构建时间：{new Date(__BUILD_VERSION__).toLocaleString('zh-CN',{timeZone:'Asia/Shanghai',hour12:false})}</small><small>直接在桌面模式更新，无需重新添加图标。只重新加载应用，保留本地账目和设置。</small><div className="transfer-actions"><button type="button" disabled={checking} onClick={()=>void check()}>{checking?'检查中…':'检查更新'}</button><button type="button" disabled={checking} onClick={reload}>{version?'立即更新':'重新加载'}</button></div>{notice&&<small role="status">{notice}</small>}</section><ReleaseNotes/></>
+  return <section className="display-card app-update"><div className="transfer-actions"><button type="button" disabled={checking} onClick={()=>void check()}>{checking?'检查中…':'检查更新'}</button><button type="button" disabled={checking} onClick={reload}>{version?'立即更新':'重新加载'}</button></div><small>当前版本 v{appVersion}</small>{notice&&<small role="status">{notice}</small>}</section>
+}
+
+export function BuildInfo(){
+  return <section className="display-card"><b>消费边界 v{appVersion}</b><small>构建时间：{new Date(__BUILD_VERSION__).toLocaleString('zh-CN',{timeZone:'Asia/Shanghai',hour12:false})}</small><p>检查更新与重新加载只更新应用页面，不清除本地账目和设置，也不需要删除桌面图标。</p></section>
 }
