@@ -6,6 +6,13 @@ export function restSettings(saved?:RestSettings):RestSettings{
  return settings
 }
 const minute=(time:string)=>/^([01]\d|2[0-3]):[0-5]\d$/.test(time)?Number(time.slice(0,2))*60+Number(time.slice(3)):NaN
+export function validLunch(start:string,duration:number){return Number.isFinite(minute(start))&&Number.isFinite(duration)&&duration>=0&&duration<=240&&minute(start)+duration<1440}
+export function lunchEnd(start:string,duration:number){
+ const end=minute(start)+duration
+ if(!Number.isFinite(end)||end<0||end>=1440)return ''
+ return `${String(Math.floor(end/60)).padStart(2,'0')}:${String(end%60).padStart(2,'0')}`
+}
+export function lunchDuration(start:string,end:string){return minute(end)-minute(start)}
 export function punchMinutes(start?:string,end?:string,nextDay=false){
  if(!start||!end)return null
  const first=minute(start),last=minute(end)+(nextDay?1440:0)

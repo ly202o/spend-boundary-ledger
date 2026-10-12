@@ -1,6 +1,15 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { defaultRest, restStats, workSummary, punchMinutes, restSettings, expectedEnd, updatePunch } from './rest.ts'
+import { defaultRest, restStats, workSummary, punchMinutes, restSettings, expectedEnd, updatePunch, validLunch, lunchEnd, lunchDuration } from './rest.ts'
+test('午休时段正常时间通过校验，时长正确换算小时',()=>{
+ assert.equal(validLunch('12:00',90),true)
+ assert.equal(lunchEnd('12:00',90),'13:30')
+ assert.equal(lunchDuration('12:00','13:30')/60,1.5)
+ assert.equal(validLunch('12:00',0),true)
+ assert.equal(validLunch('bad',90),false)
+ assert.equal(validLunch('13:30',-90),false)
+ assert.equal(validLunch('23:30',90),false)
+})
 test('月薪按月份自然日均摊并跟随打卡进度，覆盖旧日薪',()=>{
  const settings={...defaultRest,dailyWage:999,monthlySalary:3100}
  assert.equal(restStats(settings,new Date(2026,9,12,19)).earned,100)
