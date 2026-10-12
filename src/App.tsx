@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useRef, useMemo, useState } from 'react'
 import { CalendarDays, Check, Download, Home, LayoutGrid, Pencil, Plus, ReceiptText, RotateCcw, Sparkles, Trash2, Upload, WalletCards, X } from 'lucide-react'
 import { diningKind, diningBudgetId, spendingLabels } from './dining'
+import AppUpdate from './AppUpdate'
 import { filterTransactions } from './record-filter'
 import { readBackup } from './backup'
 import { initialLedger, loadWorkspace, normalizeLedger, saveWorkspace } from './store'
@@ -370,6 +371,7 @@ function SettingsPage({workspace,onRestoreWorkspace,ledger,update,onReset,onExpo
   const [confirmingReset,setConfirmingReset] = useState(false)
   const display=ledger.display||defaultDisplay
   return <Page title="偏好与数据"><div className="panel settings">
+    <AppUpdate/>
     <section className="display-card"><b>显示设置</b><label className="switch-row"><span>金额使用千位分隔符<small>{display.groupThousands?'显示为 1,000.00':'显示为 1000.00'}</small></span><input type="checkbox" checked={display.groupThousands} onChange={e=>update({...ledger,display:{...display,groupThousands:e.target.checked}})}/></label><label>界面字体<select value={display.font} onChange={e=>update({...ledger,display:{...display,font:e.target.value as DisplayPreferences['font']}})}><option value="system">系统默认</option><option value="rounded">圆润字体</option><option value="serif">宋体</option></select></label></section>
     <ChartThresholdSettings thresholds={ledger.chartThresholds} colors={ledger.chartColors} squareOpacity={ledger.chartSquareOpacity} onSave={chartThresholds=>update({...ledger,chartThresholds})} onSaveColors={chartColors=>update({...ledger,chartColors})} onSaveOpacity={chartSquareOpacity=>update({...ledger,chartSquareOpacity})}/>
     <ImportExportSettings ledger={ledger} update={update} workspace={workspace} onRestoreWorkspace={onRestoreWorkspace}/>
