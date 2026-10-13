@@ -15,6 +15,18 @@ test('完整备份保存多账本、分类图标、收入和显示偏好',()=>{
 })
 test('兼容旧版单账本备份',()=>assert.equal(readBackup({ledger:initialLedger}).ledger?.monthlyBudget,4000))
 
+test('购物清单和回收站随完整备份恢复，旧愿望不被合并或覆盖',()=>{
+ const item={id:'shop',title:'纸巾',quantity:2,unitPrice:12.5,purchased:false}
+ const wish={id:'wish',title:'相机',amount:3000,intensity:8,source:'budget' as const}
+ const ledger={...initialLedger,shoppingItems:[item],wishes:[wish]}
+ const entry={id:'trash-shop',bookId:'main',kind:'shopping',label:'纸巾',deletedAt:new Date().toISOString(),data:item}
+ const restored=readBackup(JSON.parse(JSON.stringify({workspace:{version:1,activeBookId:'main',books:[{id:'main',name:'日常',ledger}],trash:[entry]}}))).workspace!
+ assert.deepEqual(restored.books[0].ledger.shoppingItems,[item])
+ assert.deepEqual(restored.books[0].ledger.wishes,[wish])
+ assert.deepEqual(restored.trash[0],entry)
+ assert.throws(()=>readBackup({ledger:{...ledger,shoppingItems:[{...item,quantity:-1}]}}))
+})
+
 test('完整备份保存休息卡片打卡历史和合并倒计时模式',()=>{
  const rest={title:'休息时间',payday:16,eventName:'假期',eventDate:'2026-10-20',dailyWage:380,workStart:'09:30',workEnd:'19:00',countdownMode:'event' as const,punches:{'2026-10-12':{start:'09:45',end:'18:45'}}}
  const ledger={...initialLedger,homeCards:[{id:'rest',type:'rest' as const,rest}]}
