@@ -35,22 +35,36 @@ export function expectedEnd(start:string,settings:RestSettings){
 }
 export function updatePunch(punch:WorkPunch,key:'start'|'end',value:string,settings:RestSettings):WorkPunch{
  if(key==='end')return {...punch,end:value||undefined,endEstimated:false,endNextDay:!!value&&!!punch.start&&value<punch.start}
- const result={...punch,start:value||undefined}
+ const result={...punch,start:value||undefined,startDefault:false}
  if(!punch.end||punch.endEstimated){
   const expected=value?expectedEnd(value,settings):null
   return {...result,end:expected?.end,endNextDay:expected?.endNextDay,endEstimated:!!expected}
  }
  return result
 }
+export function defaultPunch(settings:RestSettings,date=restDateKey()):WorkPunch{
+ const custom=settings.todayWork?.date===date?settings.todayWork:null
+ return {start:custom?.start||settings.workStart,end:custom?.end||settings.workEnd,endNextDay:(custom?.end||settings.workEnd)<(custom?.start||settings.workStart),endEstimated:true,startDefault:true}
+}
+export function countdownToEnd(settings:RestSettings,now=new Date()){
+ const punch=settings.punches?.[restDateKey(now)]||defaultPunch(settings,restDateKey(now))
+ const expected=punch.start?expectedEnd(punch.start,settings):null
+ const end=punch.end||expected?.end||settings.workEnd
+ const target=new Date(now.getFullYear(),now.getMonth(),now.getDate()+(punch.endNextDay?1:0),Number(end.slice(0,2)),Number(end.slice(3)),0)
+ const remaining=Math.max(0,Math.ceil((target.getTime()-now.getTime())/1000))
+ const hours=Math.floor(remaining/3600),minutes=Math.floor((remaining%3600)/60),seconds=remaining%60
+ return {remaining,text:[hours,minutes,seconds].map(value=>String(value).padStart(2,'0')).join(':'),punch}
+}
 export function actualWorkMinutes(punch:WorkPunch,settings:RestSettings){
- if(punch.endEstimated||punchMinutes(punch.start,punch.end,punch.endNextDay)===null)return null
+ if(punch.startDefault||punch.endEstimated||punchMinutes(punch.start,punch.end,punch.endNextDay)===null)return null
  return netMinutes(minute(punch.start!),minute(punch.end!)+(punch.endNextDay?1440:0),settings)
 }
 export function workSummary(settings:RestSettings,now=new Date()){
  const month=restDateKey(now).slice(0,7)
  const records=Object.entries(settings.punches||{}).filter(([date])=>date.startsWith(month)&&date<=restDateKey(now)).map(([date,punch])=>({date,...punch,minutes:actualWorkMinutes(punch,settings)})).sort((a,b)=>b.date.localeCompare(a.date))
  const completed=records.filter(record=>record.minutes!==null)
- return {records,days:completed.length,totalMinutes:completed.reduce((sum,record)=>sum+record.minutes!,0)}
+ const defaults=records.filter(record=>record.startDefault&&punchMinutes(record.start,record.end,record.endNextDay)!==null)
+ return {records,days:completed.length,totalMinutes:completed.reduce((sum,record)=>sum+record.minutes!,0),defaultDays:defaults.length,defaultMinutes:defaults.reduce((sum,record)=>sum+netMinutes(minute(record.start!),minute(record.end!)+(record.endNextDay?1440:0),settings),0)}
 }
 const stamp=(date:Date)=>Date.UTC(date.getFullYear(),date.getMonth(),date.getDate())
 export const restDateKey=(now=new Date())=>`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`

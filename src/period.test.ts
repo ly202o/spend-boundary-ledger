@@ -40,3 +40,11 @@ test('月热力格覆盖17日至下月16日', () => {
   assert.equal(days[0].dateKey, '2026-09-17')
   assert.equal(days.at(-1)?.dateKey, '2026-10-16')
 })
+
+test('柱图三餐和其他饮食分段不改变总金额、日期和比例',()=>{
+ const transactions=[{id:'m',title:'午餐',category:'午餐',source:'meal' as const,date:'2026-10-16',amount:20},{id:'s',title:'奶茶',category:'奶茶',date:'2026-10-16',amount:10},{id:'n',title:'夜宵',category:'夜宵',date:'2026-10-16',amount:5}]
+ const day=spendingPeriodDays(transactions,'week',new Date(2026,9,16)).find(day=>day.dateKey==='2026-10-16')!
+ assert.equal(day.amount,35)
+ assert.equal(day.mealAmount,20)
+ assert.equal(day.extraAmount,15)
+})

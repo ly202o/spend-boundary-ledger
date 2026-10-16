@@ -1,5 +1,6 @@
 import type { Transaction } from './types'
 import { billingMonthForDate, billingRange } from './cycle.ts'
+import { diningKind } from './dining.ts'
 
 export type SpendingPeriod = 'week' | 'seven' | 'month'
 
@@ -39,9 +40,14 @@ export function spendingPeriodDays(transactions: Transaction[], period: Spending
   return Array.from({ length }, (_, index) => {
     const date = addDays(range.start, index)
     const dateKey = key(date)
+    const items=transactions.filter(item=>item.date===dateKey)
+    const mealAmount=items.filter(item=>diningKind(item)==='meal').reduce((sum,item)=>sum+Math.round(item.amount*100),0)/100
+    const extraAmount=items.filter(item=>diningKind(item)==='night'||diningKind(item)==='snack').reduce((sum,item)=>sum+Math.round(item.amount*100),0)/100
     return {
       date,
       dateKey,
+      mealAmount,
+      extraAmount,
       amount: transactions.filter(item => item.date === dateKey).reduce((sum, item) => sum + item.amount, 0),
       future: date > range.end,
     }

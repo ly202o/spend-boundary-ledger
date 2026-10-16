@@ -1,6 +1,24 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { defaultRest, restStats, workSummary, punchMinutes, restSettings, expectedEnd, updatePunch, validLunch, lunchEnd, lunchDuration } from './rest.ts'
+import { defaultRest, restStats, workSummary, punchMinutes, restSettings, expectedEnd, updatePunch, validLunch, lunchEnd, lunchDuration, defaultPunch, countdownToEnd } from './rest.ts'
+
+test('默认打卡与真实打卡分开统计，倒计时精确到秒且手动时间优先',()=>{
+ const now=new Date(2026,9,16,17,4,24)
+ const punch=defaultPunch(defaultRest,'2026-10-16')
+ assert.equal(punch.start,'09:30')
+ assert.equal(punch.end,'19:00')
+ assert.equal(punch.startDefault,true)
+ assert.equal(countdownToEnd(defaultRest,now).text,'01:55:36')
+ const settings={...defaultRest,punches:{'2026-10-16':punch}}
+ assert.equal(workSummary(settings,now).days,0)
+ assert.equal(workSummary(settings,now).defaultDays,1)
+ assert.equal(workSummary(settings,now).defaultMinutes,480)
+ const manual=updatePunch(punch,'start','09:00',defaultRest)
+ assert.equal(manual.startDefault,false)
+ assert.equal(manual.end,'18:30')
+ assert.equal(countdownToEnd({...settings,punches:{'2026-10-16':manual}},now).text,'01:25:36')
+ assert.equal(countdownToEnd(defaultRest,new Date(2026,9,16,20)).text,'00:00:00')
+})
 test('午休时段正常时间通过校验，时长正确换算小时',()=>{
  assert.equal(validLunch('12:00',90),true)
  assert.equal(lunchEnd('12:00',90),'13:30')
