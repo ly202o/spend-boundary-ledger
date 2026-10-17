@@ -1,4 +1,7 @@
 import type { RestSettings, WorkPunch } from './types'
+export function isWorkday(settings:RestSettings,date=new Date()){
+ return (settings.workDays??[1,2,3,4,5]).includes(date.getDay())
+}
 export const defaultRest:RestSettings={title:'休息时间',payday:15,eventName:'期待日',eventDate:'',dailyWage:0,breakMinutes:90,breakStart:'12:00',workStart:'09:30',workEnd:'19:00'}
 export function restSettings(saved?:RestSettings):RestSettings{
  const settings={...defaultRest,...saved}

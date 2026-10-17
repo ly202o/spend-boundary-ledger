@@ -1,5 +1,12 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
+import { isWorkday } from './rest.ts'
+test('下班倒计时按可编辑工作日显示，默认周末休息',()=>{
+ assert.equal(isWorkday(defaultRest,new Date(2026,9,16)),true)
+ assert.equal(isWorkday(defaultRest,new Date(2026,9,17)),false)
+ assert.equal(isWorkday({...defaultRest,workDays:[6]},new Date(2026,9,17)),true)
+ assert.equal(isWorkday({...defaultRest,workDays:[]},new Date(2026,9,16)),false)
+})
 import { defaultRest, restStats, workSummary, punchMinutes, restSettings, expectedEnd, updatePunch, validLunch, lunchEnd, lunchDuration, defaultPunch, countdownToEnd } from './rest.ts'
 
 test('默认打卡与真实打卡分开统计，倒计时精确到秒且手动时间优先',()=>{
