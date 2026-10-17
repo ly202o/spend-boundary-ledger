@@ -64,7 +64,7 @@ header{display:flex;align-items:center;justify-content:space-between;margin-bott
 .period-heading{display:flex;align-items:center;justify-content:space-between;gap:10px}
 .period-card .eyebrow{margin-bottom:0}
 .period-meta{display:flex;align-items:flex-end;justify-content:space-between;gap:8px;margin:8px 0 4px;color:#73827e;font-size:9px}.period-meta b{color:#45645c}
-.period-budget{width:100%;display:flex;align-items:center;justify-content:space-between;gap:9px;flex-wrap:nowrap}.period-budget span{white-space:nowrap}
+.period-budget{width:100%;display:flex;align-items:flex-start;justify-content:space-between;gap:9px;flex-wrap:nowrap}.period-budget span{white-space:nowrap}.period-budget-group{display:flex;flex-direction:column;align-items:flex-start;gap:5px;min-width:0}.period-budget .period-secondary{font-size:10px;line-height:1.6;color:#82928d;font-weight:400}
 .period-total{display:flex;align-items:baseline;justify-content:space-between;gap:12px}.period-total>strong{font-size:42px;letter-spacing:-1.5px;font-weight:650;color:var(--accent)}.period-total>span{color:var(--muted);font-size:11px;white-space:nowrap}.period-total>span b{margin-left:3px;color:#365d53;font-size:14px}
 .period-filter{flex:none;display:flex;gap:3px;padding:3px;border-radius:12px;background:#edf2f0}
 .period-filter button{min-height:26px;padding:4px 9px;border:0;border-radius:9px;background:transparent;color:#71817c;font-size:10px}.period-filter button.active{background:#fff;color:#087d72;font-weight:700;box-shadow:0 2px 7px #294b4112}
