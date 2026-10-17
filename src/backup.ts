@@ -4,8 +4,9 @@ import { validShoppingItems } from './shopping.ts'
 
 const object=(value:unknown):value is Record<string,unknown>=>!!value&&typeof value==='object'&&!Array.isArray(value)
 const records=(value:unknown,date=false)=>Array.isArray(value)&&value.every(item=>object(item)&&typeof item.id==='string'&&typeof item.title==='string'&&typeof item.amount==='number'&&Number.isFinite(item.amount)&&item.amount>=0&&(!date||typeof item.date==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(item.date)))
+const validPools=(value:Record<string,unknown>)=>value.budgets===undefined||(Array.isArray(value.budgets)&&value.budgets.every(item=>object(item)&&(item.pool===undefined||(object(item.pool)&&typeof item.pool.enabled==='boolean'&&typeof item.pool.amount==='number'&&Number.isFinite(item.pool.amount)&&item.pool.amount>=0&&item.pool.amount<=100000000))))
 function validLedger(value:unknown):value is Ledger {
-  return object(value)&&typeof value.monthlyBudget==='number'&&Number.isFinite(value.monthlyBudget)&&typeof value.mealBudget==='number'&&Number.isFinite(value.mealBudget)&&records(value.transactions,true)&&records(value.wishes)&&(value.shoppingItems===undefined||validShoppingItems(value.shoppingItems))&&records(value.expenses)&&(value.incomes===undefined||records(value.incomes,true))
+  return object(value)&&validPools(value)&&typeof value.monthlyBudget==='number'&&Number.isFinite(value.monthlyBudget)&&typeof value.mealBudget==='number'&&Number.isFinite(value.mealBudget)&&records(value.transactions,true)&&records(value.wishes)&&(value.shoppingItems===undefined||validShoppingItems(value.shoppingItems))&&records(value.expenses)&&(value.incomes===undefined||records(value.incomes,true))
 }
 export function readBackup(parsed:unknown):{workspace?:LedgerWorkspace;ledger?:Ledger} {
   if(!object(parsed))throw new Error('备份格式无效。')

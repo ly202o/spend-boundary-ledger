@@ -1,0 +1,5 @@
+export type FoodPattern='stripe'|'dots'|'lines'|'outline'|'fade'|'none'
+export const foodPatterns:[FoodPattern,string][]=[['stripe','斜纹'],['dots','点阵'],['lines','横纹'],['outline','描边'],['fade','浅色'],['none','不区分']]
+export default function ChartPatterns({pattern,split,onChange}:{pattern?:FoodPattern;split?:boolean;onChange:(pattern:FoodPattern,split:boolean)=>void}){
+ return <section className="display-card"><b>支出柱分类样式</b><small>预算动态颜色不变。下段为三餐，上段为零食饮品、夜宵等；金额顺序与柱图保持一致。</small><div className="food-pattern-options">{foodPatterns.map(([id,label])=><button key={id} type="button" aria-pressed={(pattern||'stripe')===id} data-food-pattern={id} onClick={()=>onChange(id,split??false)}><span className="pattern-preview"><span className="bar-extra"/><span/></span><span>{label}</span></button>)}</div><label className="switch-row"><span>饮食金额上下分开显示<small>上：其他饮食；下：三餐。关闭时显示合计。</small></span><input type="checkbox" checked={split??false} onChange={event=>onChange(pattern||'stripe',event.target.checked)}/></label></section>
+}
