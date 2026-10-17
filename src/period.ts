@@ -3,6 +3,9 @@ import { billingMonthForDate, billingRange } from './cycle.ts'
 import { diningKind } from './dining.ts'
 
 export type SpendingPeriod = 'week' | 'seven' | 'month'
+export function showBillingRemainder(period:SpendingPeriod,crosses:boolean,weekRemaining:number,billingRemaining:number,weekOffset=0){
+  return period==='week'&&weekOffset===0&&crosses&&Math.round(weekRemaining*100)>Math.round(billingRemaining*100)
+}
 
 /** A week chart covers all seven displayed days, not just days with expenses. */
 export function crossesBillingPeriod(period:SpendingPeriod,date:Date,startDay=17,month=billingMonthForDate(date,startDay)) {
