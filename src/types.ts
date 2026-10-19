@@ -15,13 +15,14 @@ export type Expense = {
   category: string
 }
 export type Income = { id: string; title: string; amount: number; date: string; time?: string; category?: string }
+export type OffLedgerExpense = { id: string; title: string; amount: number; category: string; date: string; endDate?: string; note?: string }
 export type CategoryGroup = { name: string; children: string[]; icon?: string; childIcons?: Record<string,string>; kind?: 'meal'|'night'|'snack' }
 export type BudgetAllocation = { pool?:{enabled:boolean;amount:number}; id: string; name: string; amount: number; kind: 'meal' | 'night' | 'snack' | 'rent' | 'custom' }
 export type SpendingCategory = 'food'|'meal'|'night'|'snack'|'other'|'all'
 export type WorkPunch={start?:string;end?:string;endEstimated?:boolean;endNextDay?:boolean;startDefault?:boolean}
 export type RestSettings={eventMode?:'festival'|'custom';workDays?:number[];breakMinutes?:number;breakStart?:string;monthlySalary?:number;weekday?:number;title:string;payday:number;eventName:string;eventDate:string;dailyWage:number;workStart:string;workEnd:string;countdownMode?:'payday'|'event';punches?:Record<string,WorkPunch>;todayWork?:{date:string;start:string;end:string}}
 export type HomeCard = {id:string;type:'balance'|'spending'|'rest';rest?:RestSettings;category?:SpendingCategory;period?:'week'|'seven'|'month';balanceMode?:'minimal'|'detail'}
-export type TrashKind = 'transaction' | 'income' | 'wish' | 'shopping' | 'budget' | 'categoryGroup' | 'categoryChild' | 'book' | 'reset'
+export type TrashKind = 'transaction' | 'income' | 'offLedgerExpense' | 'wish' | 'shopping' | 'budget' | 'categoryGroup' | 'categoryChild' | 'book' | 'reset'
 export type TrashEntry = { id: string; bookId: string; kind: TrashKind; label: string; deletedAt: string; data: unknown }
 export type LedgerBook = { id: string; name: string; ledger: Ledger }
 export type LedgerWorkspace = { version: 1; activeBookId: string; books: LedgerBook[]; trash: TrashEntry[] }
@@ -29,4 +30,4 @@ export type MealTimes = { breakfast: string; lunch: string; dinner: string; supp
 export type ChartThresholds = { nearPercent: number; moderatePercent?: number; severePercent: number }
 export type ChartColors = { within: string; near: string; over: string; moderate?: string; severe: string }
 export type DisplayPreferences = { groupThousands: boolean; font: 'system' | 'rounded' | 'serif' }
-export type Ledger = { foodPattern?:'stripe'|'dots'|'lines'|'outline'|'fade'|'none'; splitFoodAmounts?:boolean; monthlyBudget: number; mealBudget: number; rentBudget?: number; otherBudget?: number; budgets?: BudgetAllocation[]; budgetVersion?: number; mode: 'dynamic' | 'fixed'; fixedDailyAmount?: number; mealTimes?: MealTimes; spendingPeriod?: 'week' | 'seven' | 'month'; homeCards?: HomeCard[]; diningVersion?: number; foodVersion?: number; homeBalanceMode?: 'minimal' | 'detail'; homeFirstCard?: 'balance' | 'chart'; chartThresholds?: ChartThresholds; chartColors?: ChartColors; chartSquareOpacity?: number; billingStartDay?: number; categories?: string[]; categoryGroups?: CategoryGroup[]; transactions: Transaction[]; incomes?: Income[]; wishes: Wish[]; shoppingItems?: ShoppingItem[]; expenses: Expense[]; display?: DisplayPreferences; updatedAt?: string }
+export type Ledger = { foodPattern?:'stripe'|'dots'|'lines'|'outline'|'fade'|'none'; splitFoodAmounts?:boolean; monthlyBudget: number; mealBudget: number; rentBudget?: number; otherBudget?: number; budgets?: BudgetAllocation[]; budgetVersion?: number; mode: 'dynamic' | 'fixed'; fixedDailyAmount?: number; mealTimes?: MealTimes; spendingPeriod?: 'week' | 'seven' | 'month'; homeCards?: HomeCard[]; diningVersion?: number; foodVersion?: number; homeBalanceMode?: 'minimal' | 'detail'; homeFirstCard?: 'balance' | 'chart'; chartThresholds?: ChartThresholds; chartColors?: ChartColors; chartSquareOpacity?: number; billingStartDay?: number; categories?: string[]; categoryGroups?: CategoryGroup[]; transactions: Transaction[]; incomes?: Income[]; offLedgerExpenses?: OffLedgerExpense[]; wishes: Wish[]; shoppingItems?: ShoppingItem[]; expenses: Expense[]; display?: DisplayPreferences; updatedAt?: string }

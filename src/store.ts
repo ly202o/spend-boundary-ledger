@@ -8,7 +8,7 @@ const testModeKey = 'spend-boundary-ledger-test-mode'
 const workspaceKey = 'spend-boundary-ledger-books-v1'
 const testDataStart = '2026-09-16'
 export const initialLedger: Ledger = {
-  monthlyBudget: 4000, mealBudget: 1500, rentBudget: 1500, otherBudget: 1000, budgets: [{ id:'meal', name:'三餐', amount:1500, kind:'meal' }, { id:'rent', name:'房租', amount:1500, kind:'rent' }], budgetVersion: 4, mode: 'dynamic', billingStartDay: 17, transactions: [], incomes: [], wishes: [], expenses: []
+  monthlyBudget: 4000, mealBudget: 1500, rentBudget: 1500, otherBudget: 1000, budgets: [{ id:'meal', name:'三餐', amount:1500, kind:'meal' }, { id:'rent', name:'房租', amount:1500, kind:'rent' }], budgetVersion: 4, mode: 'dynamic', billingStartDay: 17, transactions: [], incomes: [], offLedgerExpenses: [], wishes: [], expenses: []
 }
 const currentMonth = () => {
   const now = new Date()
